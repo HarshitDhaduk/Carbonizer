@@ -1,0 +1,150 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Design tokens (docs/UI-UX-DESIGN.md §3) ───────────────────────────── */
+
+:root,
+[data-theme="dark"] {
+  /* base / surfaces */
+  --bg-base: #06110d;
+  --bg-sunken: #040c09;
+  --surface-1: #0e1c16;
+  --surface-2: #15271e;
+  --surface-glass: rgba(20, 39, 30, 0.55);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.12);
+
+  /* brand greens */
+  --brand-500: #2bd576;
+  --brand-400: #4fe08c;
+  --brand-600: #1fae5e;
+  --brand-glow: rgba(43, 213, 118, 0.35);
+
+  /* text */
+  --text-hi: #eaf6ef;
+  --text-mid: #a7beb2;
+  --text-lo: #6e847a;
+
+  /* category accents */
+  --cat-transport: #38bdf8;
+  --cat-energy: #fbbf24;
+  --cat-food: #a3e635;
+  --cat-spend: #c084fc;
+  --cat-home: #fb923c;
+
+  /* semantic */
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --info: #60a5fa;
+
+  /* --font-display / --font-sans / --font-mono are injected by next/font
+     in layout.tsx; Tailwind fontFamily provides system fallbacks. */
+}
+
+[data-theme="light"] {
+  --bg-base: #f4f8f5;
+  --bg-sunken: #e9f0eb;
+  --surface-1: #ffffff;
+  --surface-2: #edf3ee;
+  --surface-glass: rgba(255, 255, 255, 0.7);
+  --border-subtle: rgba(11, 31, 22, 0.08);
+  --border-strong: rgba(11, 31, 22, 0.16);
+
+  --brand-500: #16a34a;
+  --brand-400: #22c55e;
+  --brand-600: #15803d;
+  --brand-glow: rgba(22, 163, 74, 0.2);
+
+  --text-hi: #0b1f16;
+  --text-mid: #3c5249;
+  --text-lo: #6b8175;
+
+  --cat-transport: #0284c7;
+  --cat-energy: #d97706;
+  --cat-food: #65a30d;
+  --cat-spend: #9333ea;
+  --cat-home: #ea580c;
+}
+
+/* ── Base ──────────────────────────────────────────────────────────────── */
+
+* {
+  border-color: var(--border-subtle);
+}
+
+html {
+  color-scheme: dark;
+}
+
+[data-theme="light"] html,
+html[data-theme="light"] {
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-mid);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* tabular numerals everywhere a metric renders */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* glass panel utility */
+.glass {
+  background: var(--surface-glass);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  border: 1px solid var(--border-subtle);
+}
+
+/* focus ring */
+:where(a, button, input, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand-400);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* honor user motion preference globally (docs §11) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* shimmer for skeletons */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.06),
+    transparent
+  );
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
