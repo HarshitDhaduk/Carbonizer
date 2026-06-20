@@ -16,7 +16,10 @@ export function LandingNav() {
           <a href="#sources" className="transition-colors hover:text-text-hi">
             Your data
           </a>
-          <a href="#principles" className="transition-colors hover:text-text-hi">
+          <a
+            href="#principles"
+            className="transition-colors hover:text-text-hi"
+          >
             Principles
           </a>
         </nav>

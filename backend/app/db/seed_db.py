@@ -13,7 +13,7 @@ Run (after provisioning the DB — see scripts/provision_db.sql):
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -22,7 +22,7 @@ from app.core.config import settings
 from app.core.security import hash_password
 from app.db.base import Base
 from app.db.session import get_engine
-from app.models import (  # noqa: F401 — ensure all tables are registered on Base
+from app.models import (
     Cohort,
     Connection,
     FootprintSnapshot,
@@ -67,7 +67,7 @@ async def _seed() -> None:
     summary = seed.seed_summary()
     nudges = seed.seed_nudges()
     benchmark = seed.seed_benchmark()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     async with sessionmaker() as db:
         # --- clean previous demo data (idempotent) ---

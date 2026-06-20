@@ -178,7 +178,10 @@ export function Planet({
       <instancedMesh ref={trunkRef} args={[trunkGeo, undefined, BASE_TREES]}>
         <meshStandardMaterial color="#5b3f2a" roughness={0.9} flatShading />
       </instancedMesh>
-      <instancedMesh ref={foliageRef} args={[foliageGeo, undefined, BASE_TREES]}>
+      <instancedMesh
+        ref={foliageRef}
+        args={[foliageGeo, undefined, BASE_TREES]}
+      >
         <meshStandardMaterial roughness={0.7} flatShading />
       </instancedMesh>
 

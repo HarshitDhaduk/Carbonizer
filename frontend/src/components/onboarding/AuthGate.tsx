@@ -56,7 +56,7 @@ export function AuthGate() {
   }
 
   return (
-    <div className="animate-fade-rise w-full max-w-sm">
+    <div className="w-full max-w-sm animate-fade-rise">
       <div className="mb-6 flex flex-col items-center text-center">
         <Link
           href="/"
@@ -197,9 +197,13 @@ function PasswordField({
           onClick={onToggle}
           aria-label={show ? "Hide password" : "Show password"}
           aria-pressed={show}
-          className="absolute right-2 top-1/2 -translate-y-1/2 grid h-7 w-7 place-items-center rounded text-text-lo transition-colors hover:text-text-hi"
+          className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded text-text-lo transition-colors hover:text-text-hi"
         >
-          {show ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
+          {show ? (
+            <EyeOff size={16} aria-hidden />
+          ) : (
+            <Eye size={16} aria-hidden />
+          )}
         </button>
       </div>
     </div>

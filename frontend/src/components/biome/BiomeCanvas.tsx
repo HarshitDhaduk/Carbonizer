@@ -58,7 +58,9 @@ export function BiomeCanvas({
     <div className="relative flex h-full w-full flex-col items-center justify-center">
       <div className="pointer-events-none absolute left-3 top-3 z-10 flex items-center gap-1.5 text-xs text-text-lo">
         <Move3d size={14} aria-hidden />
-        {use2D ? "Your living world" : "Tap the planet to plant · drag to orbit"}
+        {use2D
+          ? "Your living world"
+          : "Tap the planet to plant · drag to orbit"}
       </div>
 
       <div
@@ -90,7 +92,7 @@ export function BiomeCanvas({
       {/* planting HUD */}
       {!use2D && (
         <div className="pointer-events-none absolute bottom-2 right-3 z-10 flex items-center gap-2">
-          <span className="pointer-events-none inline-flex items-center gap-1.5 rounded-pill bg-surface-glass px-2.5 py-1 text-xs text-text-mid backdrop-blur tnum">
+          <span className="tnum pointer-events-none inline-flex items-center gap-1.5 rounded-pill bg-surface-glass px-2.5 py-1 text-xs text-text-mid backdrop-blur">
             <Sprout size={13} aria-hidden className="text-brand-400" />
             {planted} planted
           </span>

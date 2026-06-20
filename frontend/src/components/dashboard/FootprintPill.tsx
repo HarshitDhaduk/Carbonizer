@@ -18,7 +18,7 @@ export function FootprintPill({ summary }: { summary: FootprintSummary }) {
     <div className="glass flex items-center justify-between gap-4 rounded-lg px-4 py-2.5">
       <div className="min-w-0">
         <p className="text-xs text-text-lo">Footprint · annualized</p>
-        <p className="font-display text-xl text-text-hi tnum leading-tight">
+        <p className="tnum font-display text-xl leading-tight text-text-hi">
           {formatCo2e(summary.totalTco2e)}{" "}
           <span className="text-sm font-normal text-text-lo">CO₂e</span>
         </p>

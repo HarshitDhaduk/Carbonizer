@@ -40,13 +40,13 @@ export function BenchmarkGauge({ benchmark }: { benchmark: Benchmark }) {
         />
         {/* average marker */}
         <div
-          className="absolute -top-1 h-4.5 w-0.5 bg-text-lo"
+          className="h-4.5 absolute -top-1 w-0.5 bg-text-lo"
           style={{ left: pct(averageTco2e), height: "1.05rem" }}
           aria-hidden
         />
       </div>
 
-      <div className="mt-1.5 flex justify-between text-[11px] text-text-lo tnum">
+      <div className="tnum mt-1.5 flex justify-between text-[11px] text-text-lo">
         <span>You · {formatCo2e(youTco2e)}</span>
         <span>Avg · {formatCo2e(averageTco2e)}</span>
         <span>Top 20% · {formatCo2e(topTco2e)}</span>

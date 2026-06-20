@@ -16,7 +16,7 @@ footprint (Progressive Data Depth).
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -42,7 +42,7 @@ async def sync_bank(
 ) -> int:
     """Fetch + upsert bank transactions. Returns rows fetched."""
     provider = get_bank_provider("sandbox")
-    txns = await provider.fetch_transactions(user_id, datetime.now(timezone.utc))
+    txns = await provider.fetch_transactions(user_id, datetime.now(UTC))
     if not txns:
         return 0
     rows = [
@@ -73,7 +73,7 @@ async def sync_meter(
 ) -> int:
     """Fetch + upsert smart-meter energy reads. Returns rows fetched."""
     provider = get_meter_provider("sandbox")
-    reads = await provider.fetch_energy(user_id, datetime.now(timezone.utc))
+    reads = await provider.fetch_energy(user_id, datetime.now(UTC))
     if not reads:
         return 0
     rows = [
@@ -131,7 +131,7 @@ async def recompute_footprint(
     db: AsyncSession, user_id: uuid.UUID
 ) -> FootprintSummary:
     """Merge measured signals over the prior estimate and persist the snapshot."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     since = now - timedelta(days=WINDOW_DAYS + 1)
 
     # spend-based tCO2e per category (merchant-aware, R2)

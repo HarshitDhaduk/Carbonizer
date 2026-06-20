@@ -30,17 +30,17 @@ export function EstimateReveal({
   }, [hydrate, summary]);
 
   return (
-    <div className="animate-fade-rise w-full max-w-2xl space-y-4">
+    <div className="w-full max-w-2xl animate-fade-rise space-y-4">
       <header className="text-center">
-        <span className="inline-flex items-center gap-1.5 rounded-pill bg-brand-500/15 px-3 py-1 text-xs font-medium text-brand-400">
+        <span className="bg-brand-500/15 inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-xs font-medium text-brand-400">
           <Sparkles size={13} aria-hidden /> Your living world is born
         </span>
         <h1 className="mt-3 font-display text-2xl text-text-hi">
           Here&apos;s your starting footprint
         </h1>
         <p className="mt-1 text-sm text-text-mid">
-          A first estimate from your answers. Connect a data source to refine it —
-          each one makes your world more accurate and alive.
+          A first estimate from your answers. Connect a data source to refine it
+          — each one makes your world more accurate and alive.
         </p>
       </header>
 

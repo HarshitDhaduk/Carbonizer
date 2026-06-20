@@ -56,7 +56,7 @@ export function ConfirmDialog({
         aria-modal="true"
         aria-labelledby="confirm-title"
         aria-describedby={description ? "confirm-desc" : undefined}
-        className="glass animate-pop-in relative w-full max-w-sm rounded-card border border-border-subtle p-5 shadow-elev-1"
+        className="glass relative w-full max-w-sm animate-pop-in rounded-card border border-border-subtle p-5 shadow-elev-1"
       >
         <h2 id="confirm-title" className="font-display text-lg text-text-hi">
           {title}

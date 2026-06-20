@@ -24,10 +24,10 @@ class User(Base, TimestampMixin):
     target_tco2e: Mapped[float | None] = mapped_column(Numeric(6, 2))
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    privacy: Mapped["PrivacySettings"] = relationship(
+    privacy: Mapped[PrivacySettings] = relationship(
         back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
-    consents: Mapped[list["Consent"]] = relationship(
+    consents: Mapped[list[Consent]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 

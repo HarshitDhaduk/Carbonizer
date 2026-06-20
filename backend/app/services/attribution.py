@@ -16,7 +16,7 @@ weather/price terms and per-user synthetic controls for nudge effects.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,7 +43,7 @@ def _elec_aggregate(reads: list[RawEnergyRead]) -> tuple[float, float]:
 async def energy_attribution(
     db: AsyncSession, user_id: uuid.UUID
 ) -> Attribution:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     since = now - timedelta(days=WINDOW_DAYS + 1)
     res = await db.execute(
         select(RawEnergyRead).where(

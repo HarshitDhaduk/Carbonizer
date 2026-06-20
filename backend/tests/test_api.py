@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC
+
 from httpx import AsyncClient
 
 
@@ -106,7 +108,12 @@ def test_no_car_hides_km_and_zeroes_it() -> None:
 
     no_car = estimator.estimate({"carType": "none", "carKmPerWeek": 999})
     has_car = estimator.estimate({"carType": "petrol", "carKmPerWeek": 200})
-    transport = lambda s: next(c.tco2e for c in s.categories if c.category.value == "transport")
+
+    def transport(summary: object) -> float:
+        return next(
+            c.tco2e for c in summary.categories if c.category.value == "transport"
+        )
+
     assert transport(no_car) < transport(has_car)
 
 
@@ -241,12 +248,12 @@ def test_r4_benchmark_stats() -> None:
 
 async def test_sandbox_provider_deterministic() -> None:
     import uuid
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from app.services.providers import SandboxBankProvider
 
     p = SandboxBankProvider()
-    now = datetime(2026, 6, 18, tzinfo=timezone.utc)
+    now = datetime(2026, 6, 18, tzinfo=UTC)
     uid = uuid.UUID("11111111-1111-1111-1111-111111111111")
     a = await p.fetch_transactions(uid, now)
     b = await p.fetch_transactions(uid, now)

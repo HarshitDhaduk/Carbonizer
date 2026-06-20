@@ -46,7 +46,11 @@ export default function BiomeScene({
 
       <ambientLight intensity={0.5} />
       <directionalLight position={[4, 6, 3]} intensity={1.5} color="#eafff2" />
-      <directionalLight position={[-5, -2, -4]} intensity={0.35} color="#2bd576" />
+      <directionalLight
+        position={[-5, -2, -4]}
+        intensity={0.35}
+        color="#2bd576"
+      />
 
       {/* deep-space backdrop + ambient fireflies that read as life */}
       <Stars

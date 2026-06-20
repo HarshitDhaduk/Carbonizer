@@ -7,7 +7,7 @@ read from Postgres instead.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.models.enums import (
     BiomeStatus,
@@ -32,7 +32,7 @@ def seed_summary() -> FootprintSummary:
         target_tco2e=3.5,
         health=0.62,
         range="12w",
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         categories=[
             CategoryBreakdown(
                 category=Category.transport,
@@ -85,7 +85,7 @@ def seed_nudges() -> list[Nudge]:
             money_saved=0.80,
             currency="GBP",
             effort=NudgeEffort.one_tap,
-            window_ends_at=datetime(2026, 6, 17, 16, 0, tzinfo=timezone.utc),
+            window_ends_at=datetime(2026, 6, 17, 16, 0, tzinfo=UTC),
         ),
         Nudge(
             id="n-tariff",

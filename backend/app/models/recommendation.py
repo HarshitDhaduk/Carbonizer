@@ -6,8 +6,8 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    BigInteger,
     CHAR,
+    BigInteger,
     DateTime,
     Float,
     ForeignKey,

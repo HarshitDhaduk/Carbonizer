@@ -11,7 +11,8 @@ export default async function CommunityPage() {
         <header>
           <h1 className="font-display text-2xl text-text-hi">Community</h1>
           <p className="text-text-mid">
-            See where you stand and join challenges — positively framed, privacy-safe.
+            See where you stand and join challenges — positively framed,
+            privacy-safe.
           </p>
         </header>
         <BenchmarkGauge benchmark={benchmark} />

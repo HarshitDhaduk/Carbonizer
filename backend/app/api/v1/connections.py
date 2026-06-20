@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete, select
@@ -55,7 +55,7 @@ async def _connect_and_sync(
     db: AsyncSession, uid: uuid.UUID, kind: ProviderKind
 ) -> ConnectResult:
     """Upsert the connection, pull from the sandbox provider, recompute."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     res = await db.execute(
         select(Connection).where(
             Connection.user_id == uid, Connection.provider == kind

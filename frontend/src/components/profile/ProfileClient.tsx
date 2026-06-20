@@ -50,7 +50,8 @@ function ProfileContent() {
       clientApi.getOnboardingQuestions(token),
     ])
       .then(([user, connections, profile, q]) => {
-        if (active) setData({ user, connections, profile, questions: q.questions });
+        if (active)
+          setData({ user, connections, profile, questions: q.questions });
       })
       .catch(() => active && setError("Couldn't load your profile."));
     return () => {
@@ -74,7 +75,7 @@ function ProfileContent() {
       {/* account */}
       <section className="rounded-card border border-border-subtle bg-surface-1 p-4">
         <div className="flex items-center gap-3">
-          <span className="grid h-11 w-11 place-items-center rounded-full bg-brand-500/20 text-base font-medium text-brand-400">
+          <span className="bg-brand-500/20 grid h-11 w-11 place-items-center rounded-full text-base font-medium text-brand-400">
             {user.email.charAt(0).toUpperCase()}
           </span>
           <div className="min-w-0">
@@ -135,9 +136,9 @@ function ProfileContent() {
           Privacy &amp; control
         </h2>
         <p className="text-sm text-text-mid">
-          Your data is used only to calculate your footprint — never sold or used
-          for advertising. You can disconnect any source above, and request a full
-          export or erasure at any time (GDPR &amp; DPDP).
+          Your data is used only to calculate your footprint — never sold or
+          used for advertising. You can disconnect any source above, and request
+          a full export or erasure at any time (GDPR &amp; DPDP).
         </p>
       </section>
 
@@ -181,7 +182,11 @@ function ConnectionStatus({
     <span
       className={cn(
         "inline-flex items-center gap-1.5 text-xs",
-        connected ? "text-brand-400" : attention ? "text-warning" : "text-text-lo",
+        connected
+          ? "text-brand-400"
+          : attention
+            ? "text-warning"
+            : "text-text-lo",
       )}
     >
       <span

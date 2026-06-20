@@ -7,8 +7,8 @@ Docs: http://localhost:8000/docs  ·  OpenAPI: /api/v1/openapi.json
 from __future__ import annotations
 
 import logging
-from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -52,16 +52,18 @@ app = FastAPI(
 # In development, allow any localhost/127.0.0.1 port (dev servers pick random
 # ports), so browser-side calls aren't blocked by CORS. Production uses the
 # explicit allowlist only.
-_cors_kwargs: dict[str, object] = {
-    "allow_origins": settings.cors_origins,
-    "allow_credentials": True,
-    "allow_methods": ["*"],
-    "allow_headers": ["*"],
-}
-if not settings.is_production:
-    _cors_kwargs["allow_origin_regex"] = r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
-
-app.add_middleware(CORSMiddleware, **_cors_kwargs)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_origin_regex=(
+        r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
+        if not settings.is_production
+        else None
+    ),
+)
 
 app.include_router(api_router, prefix=settings.api_v1_prefix)
 

@@ -9,15 +9,15 @@ estimation model share one source of truth.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.models.enums import BiomeStatus, CalcMethod, Category, Trend
 from app.schemas.footprint import CategoryBreakdown, FootprintSummary
 from app.schemas.onboarding import (
     AnswerValue,
     Question,
-    QuestionOption,
     Questionnaire,
+    QuestionOption,
     VisibleIf,
 )
 
@@ -134,9 +134,9 @@ def normalize_answers(raw: dict[str, AnswerValue]) -> dict[str, AnswerValue]:
         val = raw.get(q.id, q.default)
         if q.type == "number":
             try:
-                num = int(val)  # type: ignore[arg-type]
+                num = int(val)
             except (TypeError, ValueError):
-                num = int(q.default)  # type: ignore[arg-type]
+                num = int(q.default)
             if q.min is not None:
                 num = max(q.min, num)
             if q.max is not None:
@@ -235,7 +235,7 @@ def estimate(answers: dict[str, AnswerValue]) -> FootprintSummary:
         health=round(health, 3),
         categories=categories,
         range="12w",
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
     )
 
 

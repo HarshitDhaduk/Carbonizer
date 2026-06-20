@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -150,7 +150,7 @@ async def post_estimate(
 
     answers = estimator.normalize_answers(body.answers)
     summary = estimator.estimate(answers)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # 1) finalize the onboarding profile
     profile = await _get_or_create_profile(db, uid)

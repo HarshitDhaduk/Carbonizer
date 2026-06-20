@@ -61,7 +61,9 @@ export function DashboardClient() {
           router.replace("/onboarding");
           return;
         }
-        setError(e instanceof Error ? e.message : "Couldn't load your dashboard.");
+        setError(
+          e instanceof Error ? e.message : "Couldn't load your dashboard.",
+        );
       });
     return () => {
       active = false;

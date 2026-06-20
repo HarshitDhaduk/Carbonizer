@@ -113,11 +113,11 @@ def merchant_multiplier(merchant: str | None) -> float:
 def co2e_kg(category: Category, gbp: float, merchant: str | None = None) -> float:
     """Spend-based CO2e (kg), refined by (R2) a merchant-level multiplier and a
     per-category price-elasticity so carbon decouples from premium pricing."""
-    base = _CATEGORY_KG_PER_GBP.get(category, _CATEGORY_KG_PER_GBP[Category.spend])
-    e = _CATEGORY_PRICE_ELASTICITY.get(category, 0.85)
-    ref = _CATEGORY_REF_GBP.get(category, 35.0)
-    priced = base * ref * (max(gbp, 0.01) / ref) ** e
-    return priced * merchant_multiplier(merchant)
+    base: float = _CATEGORY_KG_PER_GBP.get(category, _CATEGORY_KG_PER_GBP[Category.spend])
+    e: float = _CATEGORY_PRICE_ELASTICITY.get(category, 0.85)
+    ref: float = _CATEGORY_REF_GBP.get(category, 35.0)
+    priced: float = base * ref * (max(gbp, 0.01) / ref) ** e
+    return float(priced * merchant_multiplier(merchant))
 
 
 def energy_co2e_kg(kwh: float, fuel: str, grid_intensity_g: float | None) -> float:

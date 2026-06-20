@@ -79,7 +79,7 @@ export function Questionnaire({
   };
 
   return (
-    <div className="animate-fade-rise w-full max-w-md">
+    <div className="w-full max-w-md animate-fade-rise">
       {/* progress */}
       <div className="mb-6">
         <div className="mb-2 flex items-center justify-between text-xs text-text-lo">
@@ -103,7 +103,7 @@ export function Questionnaire({
         <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-text-lo">
           <Sparkles size={11} aria-hidden className="text-brand-400" />
           Estimate precision{" "}
-          <span className="text-text-mid tnum">{precision}%</span>
+          <span className="tnum text-text-mid">{precision}%</span>
           <span className="text-text-lo">· most-important questions first</span>
         </p>
       </div>
@@ -127,7 +127,7 @@ export function Questionnaire({
                   className={cn(
                     "flex w-full items-center justify-between rounded-md border px-4 py-3 text-left transition-colors duration-fast",
                     selected
-                      ? "border-brand-500 bg-brand-500/10 text-text-hi"
+                      ? "bg-brand-500/10 border-brand-500 text-text-hi"
                       : "border-border-subtle bg-surface-1 text-text-mid hover:bg-surface-2",
                   )}
                 >
@@ -161,7 +161,12 @@ export function Questionnaire({
         >
           <ArrowLeft size={18} aria-hidden />
         </Button>
-        <Button size="lg" className="flex-1" onClick={next} disabled={submitting}>
+        <Button
+          size="lg"
+          className="flex-1"
+          onClick={next}
+          disabled={submitting}
+        >
           {submitting ? "Calculating…" : isLast ? "See my footprint" : "Next"}
           {!submitting && <ArrowRight size={18} aria-hidden />}
         </Button>
@@ -199,7 +204,7 @@ function NumberQuestion({
   return (
     <div className="rounded-md border border-border-subtle bg-surface-1 p-4">
       <div className="mb-3 text-center">
-        <span className="font-display text-3xl text-text-hi tnum">{value}</span>
+        <span className="tnum font-display text-3xl text-text-hi">{value}</span>
         {unit && <span className="ml-1 text-text-lo">{unit}</span>}
       </div>
       <input
@@ -213,7 +218,7 @@ function NumberQuestion({
         aria-label={unit ? `Value in ${unit}` : "Value"}
         aria-valuetext={unit ? `${value} ${unit}` : `${value}`}
       />
-      <div className="mt-1 flex justify-between text-[11px] text-text-lo tnum">
+      <div className="tnum mt-1 flex justify-between text-[11px] text-text-lo">
         <span>{min}</span>
         <span>
           {max}

@@ -47,7 +47,9 @@ export function ConnectSources({
 }) {
   const token = useAuthStore((s) => s.token);
   const [busy, setBusy] = useState<ConnectProvider | null>(null);
-  const [done, setDone] = useState<Partial<Record<ConnectProvider, number>>>({});
+  const [done, setDone] = useState<Partial<Record<ConnectProvider, number>>>(
+    {},
+  );
   const [error, setError] = useState<string | null>(null);
 
   async function connect(provider: ConnectProvider) {
@@ -59,7 +61,9 @@ export function ConnectSources({
       onSummary(res.summary);
       setDone((d) => ({ ...d, [provider]: res.recordsImported }));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Couldn't connect — try again.");
+      setError(
+        e instanceof ApiError ? e.message : "Couldn't connect — try again.",
+      );
     } finally {
       setBusy(null);
     }
@@ -84,7 +88,11 @@ export function ConnectSources({
                     : "bg-surface-2 text-text-mid",
                 )}
               >
-                {connected ? <Check size={18} aria-hidden /> : <s.Icon size={18} aria-hidden />}
+                {connected ? (
+                  <Check size={18} aria-hidden />
+                ) : (
+                  <s.Icon size={18} aria-hidden />
+                )}
               </span>
               <div className="min-w-0 text-sm">
                 <p className="font-medium text-text-hi">{s.label}</p>

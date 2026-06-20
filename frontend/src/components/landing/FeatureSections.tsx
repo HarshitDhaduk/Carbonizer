@@ -94,7 +94,7 @@ function HowItWorks() {
             key={s.n}
             className="rounded-card border border-border-subtle bg-surface-1 p-6"
           >
-            <span className="font-display text-2xl text-brand-500/70 tnum">
+            <span className="text-brand-500/70 tnum font-display text-2xl">
               {s.n}
             </span>
             <h3 className="mt-2 font-medium text-text-hi">{s.title}</h3>
@@ -132,7 +132,7 @@ function DataSources() {
   return (
     <section
       id="sources"
-      className="border-y border-border-subtle bg-bg-sunken/60 py-16 md:py-24"
+      className="bg-bg-sunken/60 border-y border-border-subtle py-16 md:py-24"
     >
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <SectionHeading
@@ -192,7 +192,7 @@ function FinalCta() {
       <div className="relative overflow-hidden rounded-card border border-border-subtle bg-surface-1 px-6 py-14 text-center">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 mx-auto h-64 w-[480px] rounded-full bg-brand-500/15 blur-[100px]"
+          className="bg-brand-500/15 pointer-events-none absolute inset-x-0 top-0 mx-auto h-64 w-[480px] rounded-full blur-[100px]"
         />
         <Leaf size={28} aria-hidden className="mx-auto text-brand-400" />
         <h2 className="mt-4 font-display text-3xl text-text-hi md:text-4xl">

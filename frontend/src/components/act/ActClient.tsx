@@ -51,7 +51,7 @@ function ActContent() {
         </div>
       ) : (
         <div className="rounded-card border border-border-subtle bg-surface-1 p-6 text-center">
-          <span className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-brand-500/15 text-brand-400">
+          <span className="bg-brand-500/15 mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full text-brand-400">
             <Sparkles size={20} aria-hidden />
           </span>
           <p className="font-medium text-text-hi">No actions yet</p>

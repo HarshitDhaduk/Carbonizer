@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import jwt
@@ -26,7 +26,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def _create_token(subject: str, ttl: timedelta, token_type: str) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload: dict[str, Any] = {
         "sub": subject,
         "type": token_type,
@@ -51,4 +51,7 @@ def create_refresh_token(subject: str) -> str:
 
 def decode_token(token: str) -> dict[str, Any]:
     """Decode and validate a JWT. Raises jwt.PyJWTError on failure."""
-    return jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+    payload: dict[str, Any] = jwt.decode(
+        token, settings.secret_key, algorithms=[settings.algorithm]
+    )
+    return payload

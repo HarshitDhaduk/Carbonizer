@@ -15,7 +15,7 @@ export function LandingHero() {
       {/* ambient brand glow */}
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-[-10%] h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-brand-500/15 blur-[120px]"
+        className="bg-brand-500/15 pointer-events-none absolute left-1/2 top-[-10%] h-[520px] w-[520px] -translate-x-1/2 rounded-full blur-[120px]"
       />
 
       <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 pb-12 pt-10 md:grid-cols-2 md:px-6 md:pb-20 md:pt-16">
@@ -31,8 +31,8 @@ export function LandingHero() {
           </h1>
 
           <p className="mt-5 max-w-md text-lg text-text-mid">
-            Carbonizer turns your everyday spending, travel and energy use into a
-            living planet — then shows you the few changes that shrink your
+            Carbonizer turns your everyday spending, travel and energy use into
+            a living planet — then shows you the few changes that shrink your
             footprint and your bills.
           </p>
 
@@ -47,7 +47,8 @@ export function LandingHero() {
 
           <p className="mt-6 flex items-center gap-2 text-sm text-text-lo">
             <ShieldCheck size={15} aria-hidden className="text-brand-400" />
-            Bank-grade encryption · GDPR &amp; DPDP compliant · You control your data
+            Bank-grade encryption · GDPR &amp; DPDP compliant · You control your
+            data
           </p>
         </div>
 

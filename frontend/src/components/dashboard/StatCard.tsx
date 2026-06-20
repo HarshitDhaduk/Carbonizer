@@ -1,6 +1,13 @@
 "use client";
 
-import { Bolt, Car, ShoppingBag, Salad, Home, type LucideIcon } from "lucide-react";
+import {
+  Bolt,
+  Car,
+  ShoppingBag,
+  Salad,
+  Home,
+  type LucideIcon,
+} from "lucide-react";
 import type { CategoryBreakdown, Category } from "@/lib/types";
 import { CATEGORY_HEX, CATEGORY_LABEL } from "@/lib/tokens";
 import { formatCo2e } from "@/lib/format";
@@ -47,7 +54,7 @@ export function StatCard({ data }: { data: CategoryBreakdown }) {
         <Sparkline data={data.spark} color={color} />
       </div>
 
-      <p className="mt-1.5 font-display text-lg text-text-hi tnum leading-none">
+      <p className="tnum mt-1.5 font-display text-lg leading-none text-text-hi">
         {formatCo2e(data.tco2e)}
       </p>
 

@@ -72,7 +72,8 @@ export const MOCK_NUDGES: Nudge[] = [
     id: "n-tariff",
     kind: "action",
     title: "Switch to a renewable tariff",
-    detail: "Your usage pattern fits a green tariff with no standing-charge hit.",
+    detail:
+      "Your usage pattern fits a green tariff with no standing-charge hit.",
     carbonSavedTco2e: 0.3,
     moneySaved: 140,
     currency: "GBP",
@@ -99,6 +100,11 @@ export const MOCK_BENCHMARK: Benchmark = {
 
 export const MOCK_CONNECTIONS: DataConnection[] = [
   { id: "bank", label: "Bank", status: "connected", lastSync: "2h ago" },
-  { id: "telematics", label: "Travel", status: "connected", lastSync: "12m ago" },
+  {
+    id: "telematics",
+    label: "Travel",
+    status: "connected",
+    lastSync: "12m ago",
+  },
   { id: "meter", label: "Home energy", status: "needs-attention" },
 ];

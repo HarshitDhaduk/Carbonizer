@@ -17,16 +17,81 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest==8.3.4", "pytest-asyncio==0.24.0", "httpx==0.28.1"]
+dev = [
+    "pytest==8.3.4",
+    "pytest-asyncio==0.24.0",
+    "pytest-cov==6.0.0",
+    "httpx==0.28.1",
+    "ruff==0.15.18",
+    "mypy==2.1.0",
+    "types-passlib",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+omit = ["app/db/seed_db.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+skip_covered = false
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = [".venv", "alembic/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "F",     # pyflakes
+    "W",     # pycodestyle warnings
+    "I",     # isort
+    "B",     # bugbear
+    "UP",    # pyupgrade
+    "SIM",   # simplify
+    "ASYNC", # async correctness
+    "RUF",   # ruff-specific
+]
+ignore = [
+    "E501",  # line too long (sometimes unavoidable in URLs / docstrings)
+    "B008",  # function call in default arg — FastAPI Depends() pattern
+    "SIM117", # nested with — sometimes clearer
+    "RUF002", # em-dashes in docstrings are intentional throughout
+    "UP042",  # str-enum migration deferred — risks subtle behavior changes
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+
+[tool.mypy]
+python_version = "3.11"
+plugins = ["pydantic.mypy"]
+# Pragmatic start — strict_optional + warnings without full --strict yet.
+# Phase 6 tightens to --strict once refactors land.
+strict_optional = true
+disallow_untyped_defs = false
+warn_return_any = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+ignore_missing_imports = true
+exclude = ["alembic/versions", "\\.venv"]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+check_untyped_defs = false
 
 [build-system]
 requires = ["setuptools>=68"]

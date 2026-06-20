@@ -52,17 +52,20 @@ export function NudgeCard({
               {EFFORT_LABEL[nudge.effort]}
             </span>
           </p>
-          <p className="mt-0.5 truncate text-sm text-text-mid">{nudge.detail}</p>
+          <p className="mt-0.5 truncate text-sm text-text-mid">
+            {nudge.detail}
+          </p>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
             {nudge.carbonSavedTco2e > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-pill bg-brand-500/10 px-2 py-0.5 text-xs text-brand-400 tnum">
-                <Leaf size={12} aria-hidden />−{formatCo2e(nudge.carbonSavedTco2e)}
+              <span className="bg-brand-500/10 tnum inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-xs text-brand-400">
+                <Leaf size={12} aria-hidden />−
+                {formatCo2e(nudge.carbonSavedTco2e)}
                 {per}
               </span>
             )}
             {nudge.moneySaved > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-pill bg-surface-2 px-2 py-0.5 text-xs text-text-mid tnum">
+              <span className="tnum inline-flex items-center gap-1 rounded-pill bg-surface-2 px-2 py-0.5 text-xs text-text-mid">
                 <PiggyBank size={12} aria-hidden />−
                 {formatMoney(nudge.moneySaved, nudge.currency)}
                 {per}

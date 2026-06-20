@@ -25,7 +25,10 @@ import {
  * 1:1 — no transform layer needed.
  */
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/$/, "");
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(
+  /\/$/,
+  "",
+);
 const USE_MOCKS = API_BASE === "";
 const STRICT = process.env.NEXT_PUBLIC_API_STRICT === "true";
 const TIMEOUT_MS = 8000;
@@ -69,6 +72,5 @@ export const api = {
 
   getBenchmark: () => get<Benchmark>(`/community/benchmark`, MOCK_BENCHMARK),
 
-  getConnections: () =>
-    get<DataConnection[]>(`/connections`, MOCK_CONNECTIONS),
+  getConnections: () => get<DataConnection[]>(`/connections`, MOCK_CONNECTIONS),
 };

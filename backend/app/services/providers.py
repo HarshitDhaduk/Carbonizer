@@ -100,7 +100,7 @@ class SandboxBankProvider:
                         ProviderTxn(
                             external_id=f"sbx-{seq}",
                             booked_at=booked,
-                            amount_minor=int(round(pounds * 100)),
+                            amount_minor=round(pounds * 100),
                             currency="GBP",
                             mcc=mcc,
                             description=f"{merchant} card purchase",

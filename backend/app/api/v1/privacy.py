@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends
 
@@ -27,7 +27,7 @@ _demo_settings = PrivacySettingsOut(
 
 @router.get("/consents", response_model=list[ConsentOut])
 async def list_consents(_user: str = Depends(require_user)) -> list[ConsentOut]:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return [
         ConsentOut(
             id="cns_bank", scope="transactions:read", purpose="carbon_tracking",
@@ -60,13 +60,13 @@ async def request_export(_user: str = Depends(require_user)) -> DsrJobOut:
         id="dsr_export_demo",
         kind="export",
         status="pending",
-        requested_at=datetime.now(timezone.utc),
+        requested_at=datetime.now(UTC),
     )
 
 
 @router.post("/erase", response_model=DsrJobOut, status_code=202)
 async def request_erase(_user: str = Depends(require_user)) -> DsrJobOut:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return DsrJobOut(
         id="dsr_erase_demo",
         kind="erase",

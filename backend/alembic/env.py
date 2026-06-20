@@ -5,13 +5,13 @@ from __future__ import annotations
 import asyncio
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlalchemy.pool import NullPool
 
+from alembic import context
 from app.core.config import settings
-from app.models import Base  # noqa: F401 — registers all tables on Base.metadata
+from app.models import Base
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)
@@ -25,9 +25,7 @@ target_metadata = Base.metadata
 def _include_name(name: str | None, type_: str, _parent_names: dict) -> bool:
     """Ignore the DEFAULT partitions (managed by a hand-written migration, not the
     models) so autogenerate doesn't try to drop them."""
-    if name and "_default" in name and (type_ == "table" or type_ == "index"):
-        return False
-    return True
+    return not (name and "_default" in name and type_ in ("table", "index"))
 
 
 def run_migrations_offline() -> None:

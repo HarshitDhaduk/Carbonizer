@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { FootprintSummary, OnboardingAnswers, Question } from "@/lib/types";
+import type {
+  FootprintSummary,
+  OnboardingAnswers,
+  Question,
+} from "@/lib/types";
 import { ApiError, clientApi } from "@/lib/client-api";
 import { useAuthStore } from "@/store/auth-store";
 import { AuthGate } from "./AuthGate";
@@ -98,7 +102,10 @@ export function OnboardingFlow() {
     },
     [token],
   );
-  useEffect(() => () => void (saveTimer.current && clearTimeout(saveTimer.current)), []);
+  useEffect(
+    () => () => void (saveTimer.current && clearTimeout(saveTimer.current)),
+    [],
+  );
 
   async function handleComplete(answers: OnboardingAnswers) {
     if (!token) return;
@@ -120,9 +127,9 @@ export function OnboardingFlow() {
       ) : !token ? (
         <AuthGate />
       ) : completed !== false ? (
-        // checking the profile, or redirecting a returning user straight to the
-        // dashboard — stay silent (no message) until the route changes
-        null
+        // While checking the profile, or redirecting a returning user straight
+        // to the dashboard — stay silent (no message) until the route changes.
+        <></>
       ) : summary ? (
         <EstimateReveal summary={summary} />
       ) : questions ? (

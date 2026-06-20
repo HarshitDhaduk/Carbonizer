@@ -9,7 +9,7 @@ yet, they fall back to fixtures so the contract always holds.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +18,7 @@ from app.core.config import settings
 from app.models.community import Cohort, UserCohort
 from app.models.connection import Connection
 from app.models.emission import FootprintSnapshot
-from app.models.enums import ConnStatus, NudgeStatus, ProviderKind
+from app.models.enums import NudgeStatus, ProviderKind
 from app.models.recommendation import Recommendation
 from app.models.user import User
 from app.schemas.community import Benchmark
@@ -61,8 +61,8 @@ def _relative_time(ts: datetime | None) -> str | None:
     """Compact 'time ago' string for the connections list (e.g. '2h ago')."""
     if ts is None:
         return None
-    now = datetime.now(timezone.utc)
-    delta = now - (ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc))
+    now = datetime.now(UTC)
+    delta = now - (ts if ts.tzinfo else ts.replace(tzinfo=UTC))
     secs = int(delta.total_seconds())
     if secs < 60:
         return "just now"

@@ -76,14 +76,14 @@ function InsightsContent() {
       <section className="rounded-card border border-border-subtle bg-surface-1 p-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-text-mid">Data quality</h2>
-          <span className="rounded-pill bg-surface-2 px-2.5 py-1 text-xs text-text-mid tnum">
+          <span className="tnum rounded-pill bg-surface-2 px-2.5 py-1 text-xs text-text-mid">
             {measured}/{total} categories measured
           </span>
         </div>
         <p className="mt-2 text-sm text-text-mid">
           Measured categories use your real spending or metered usage. Estimated
-          ones come from your onboarding answers — connect more sources to upgrade
-          them.
+          ones come from your onboarding answers — connect more sources to
+          upgrade them.
         </p>
         <div className="mt-3">
           <ConnectSources onSummary={setSummary} />
@@ -104,8 +104,8 @@ function AttributionPanel({ attr }: { attr: Attribution }) {
         </h2>
         <p className="text-sm text-text-mid">
           Connect your home energy to see how much of a change is your own usage
-          versus the grid getting cleaner — so you&apos;re only credited for what
-          you actually did.
+          versus the grid getting cleaner — so you&apos;re only credited for
+          what you actually did.
         </p>
       </section>
     );
@@ -134,7 +134,10 @@ function AttributionPanel({ attr }: { attr: Attribution }) {
         aria-label={`${behPct}% your usage, ${gridPct}% grid intensity`}
       >
         <div className="h-full bg-brand-500" style={{ width: `${behPct}%` }} />
-        <div className="h-full bg-cat-energy/60" style={{ width: `${gridPct}%` }} />
+        <div
+          className="bg-cat-energy/60 h-full"
+          style={{ width: `${gridPct}%` }}
+        />
       </div>
       <div className="mt-1.5 flex justify-between text-[11px] text-text-lo">
         <span className="flex items-center gap-1.5">
@@ -142,7 +145,10 @@ function AttributionPanel({ attr }: { attr: Attribution }) {
           You · usage {behPct}%
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-cat-energy/60" aria-hidden />
+          <span
+            className="bg-cat-energy/60 h-1.5 w-1.5 rounded-full"
+            aria-hidden
+          />
           Grid intensity {gridPct}%
         </span>
       </div>
@@ -170,7 +176,7 @@ function CategoryBar({ c, max }: { c: CategoryBreakdown; max: number }) {
           />
           {CATEGORY_LABEL[c.category]}
         </span>
-        <span className="flex items-center gap-2 text-text-mid tnum">
+        <span className="tnum flex items-center gap-2 text-text-mid">
           {formatCo2e(c.tco2e)}
           <MethodBadge method={c.method} imputed={c.imputed ?? false} />
         </span>

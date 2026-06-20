@@ -18,7 +18,11 @@ export interface AuthState {
   status: Status;
   error: string | null;
 
-  register: (email: string, password: string, region?: string) => Promise<boolean>;
+  register: (
+    email: string,
+    password: string,
+    region?: string,
+  ) => Promise<boolean>;
   login: (email: string, password: string) => Promise<boolean>;
   loadMe: () => Promise<void>;
   logout: () => void;
@@ -42,7 +46,11 @@ export const useAuthStore = create<AuthState>()(
       register: async (email, password, region = "GB") => {
         set({ status: "loading", error: null });
         try {
-          const { accessToken } = await clientApi.registerUser(email, password, region);
+          const { accessToken } = await clientApi.registerUser(
+            email,
+            password,
+            region,
+          );
           set({ token: accessToken });
           await get().loadMe();
           set({ status: "idle" });

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from pydantic import Field
+
 from app.models.enums import TripMode
 from app.schemas.common import CamelModel
 
@@ -39,4 +41,4 @@ class EnergyReadIn(CamelModel):
 class IngestResult(CamelModel):
     accepted: int
     duplicates: int = 0
-    rejected: list[str] = []
+    rejected: list[str] = Field(default_factory=list)

@@ -1,4 +1,9 @@
-import { ArrowDownRight, ArrowUpRight, Minus, type LucideIcon } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  Minus,
+  type LucideIcon,
+} from "lucide-react";
 import type { Trend } from "@/lib/types";
 import { formatPct } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -28,7 +33,11 @@ export function TrendDelta({
   const { Icon, tone, sr } = CONFIG[trend];
   return (
     <span
-      className={cn("inline-flex items-center gap-1 text-sm tnum", tone, className)}
+      className={cn(
+        "tnum inline-flex items-center gap-1 text-sm",
+        tone,
+        className,
+      )}
     >
       <Icon size={14} aria-hidden />
       <span>

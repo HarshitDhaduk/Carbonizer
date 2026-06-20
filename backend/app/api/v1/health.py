@@ -25,6 +25,6 @@ async def readyz() -> dict[str, object]:
             async with engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
             db_ok = True
-        except Exception as exc:  # noqa: BLE001 - report, don't crash the probe
+        except Exception as exc:
             db_ok = f"error: {exc}"
     return {"status": "ok", "database": db_ok}

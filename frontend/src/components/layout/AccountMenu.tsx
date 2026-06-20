@@ -34,7 +34,7 @@ export function AccountMenu({ className }: { className?: string }) {
       >
         <span
           aria-hidden
-          className="grid h-7 w-7 place-items-center rounded-full bg-brand-500/20 text-xs font-medium text-brand-400"
+          className="bg-brand-500/20 grid h-7 w-7 place-items-center rounded-full text-xs font-medium text-brand-400"
         >
           {initial}
         </span>
@@ -55,7 +55,9 @@ export function AccountMenu({ className }: { className?: string }) {
             role="menu"
             className="glass absolute right-0 z-20 mt-2 w-56 rounded-md border border-border-subtle p-1.5 shadow-elev-1"
           >
-            <p className="truncate px-2.5 py-1.5 text-xs text-text-lo">{email}</p>
+            <p className="truncate px-2.5 py-1.5 text-xs text-text-lo">
+              {email}
+            </p>
             <button
               type="button"
               role="menuitem"

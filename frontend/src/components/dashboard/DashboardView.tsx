@@ -52,7 +52,9 @@ export function DashboardView({
       {/* do this next */}
       {topNudge && (
         <section aria-label="Recommended action">
-          <h2 className="mb-2 text-sm font-medium text-text-mid">Do this next</h2>
+          <h2 className="mb-2 text-sm font-medium text-text-mid">
+            Do this next
+          </h2>
           <NudgeCard nudge={topNudge} />
         </section>
       )}
