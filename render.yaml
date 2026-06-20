@@ -1,0 +1,41 @@
+# Render.com blueprint — free-tier deployment for the FastAPI backend.
+#
+# How to use:
+#   1. Push this file to GitHub on `main`.
+#   2. https://dashboard.render.com → New → Blueprint → connect repo.
+#   3. Render reads this file, provisions the service, and starts deploying.
+#   4. The first request after 15 min idle is slow (~30s cold start) — that's
+#      the free tier.
+#   5. Set DATABASE_URL to your Neon connection string (see docs/DEPLOYMENT.md).
+#
+# Frontend is deployed separately on Vercel.
+
+services:
+  - type: web
+    name: carbonizer-api
+    runtime: docker
+    rootDir: backend
+    plan: free
+    region: oregon
+    healthCheckPath: /api/v1/healthz
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: USE_DB
+        value: "true"
+      # DATABASE_URL — set in Render dashboard from your Neon project
+      # (postgresql+asyncpg://... — note the +asyncpg driver suffix).
+      - key: DATABASE_URL
+        sync: false
+      # SECRET_KEY — generate with `openssl rand -hex 32`, set in dashboard.
+      - key: SECRET_KEY
+        sync: false
+      # CORS_ORIGINS — comma-separated. Add your Vercel URL after first deploy:
+      # e.g. https://carbonizer.vercel.app
+      - key: CORS_ORIGINS
+        sync: false
+      - key: DEMO_EMAIL
+        value: demo@carbonizer.app
+      - key: DEMO_PASSWORD
+        sync: false
