@@ -11,6 +11,33 @@ the gaps we know about. Updated each time we ship an a11y change.
 | Keyboard-only flows | Manual + Playwright `page.keyboard.*` | ~ landing/onboarding ✅; 3D biome ✗ (Phase 5.2) |
 | Screen reader | NVDA on Windows / VoiceOver on macOS | ~ walkthrough below |
 
+## Keyboard alternative for the 3D biome (Phase 5.2 — partial)
+
+- `BiomeStore.plantRandom()` plants a tree at a uniformly-distributed unit-
+  sphere direction (Marsaglia's method). The pointer-tap path and the
+  pointer-less path both end up writing the same `plantedPoints` shape, so
+  the celebration burst and the planted counter work identically.
+- The canvas wrap is now `tabIndex={0}` with `role="application"` and an
+  `aria-label` that includes the keyboard hint
+  (`"Press Space or Enter to plant a tree."`).
+- Space or Enter on the focused canvas plants a tree.
+- A sibling **"Plant a tree" button** lives below the canvas — fully Tab-
+  reachable regardless of canvas focus state. Mirrors the affordance for
+  switch users, voice-control users, and screen-magnifier users who'd struggle
+  to acquire the canvas itself.
+- When `prefers-reduced-motion` is set, the canvas falls back to the 2D
+  poster automatically; the planting controls are hidden in that mode (no
+  3D scene to plant on).
+
+**Tracked follow-up — keyboard orbit/zoom.** Arrow-key orbit and `+`/`−`
+zoom need an `OrbitControls` ref plumbed through the dynamically-loaded
+`BiomeScene` so we can drive the camera imperatively from the wrap-level
+`onKeyDown`. Doable but cross-boundary; deferred so the planting affordance
+ships first. Today, keyboard users orbit-by-proxy via the canvas's
+`Planet.autoRotate` (hero variant only) and rely on the static poster
+underlay on the dashboard. The omission is non-blocking — the
+information conveyed by orbit isn't unique to the 3D view.
+
 ## Quick wins shipped (Phase 5.1)
 
 - **Skip-to-content link** ([SkipLink.tsx](../frontend/src/components/layout/SkipLink.tsx)).
@@ -82,7 +109,7 @@ combo (Windows / NVDA and macOS / VoiceOver).
 
 | Issue | Severity | Owner | Plan |
 |---|---|---|---|
-| 3D biome is pointer-only — no `Plant a tree` button, no keyboard orbit | High | Phase 5.2 | Sibling button + KeyboardOrbitControls (ArrowKeys / +/−); canvas gains `tabIndex={0}` |
+| 3D biome keyboard orbit/zoom is still pointer-only (planting is solved) | Moderate | Phase 5.2 follow-up | Plumb an OrbitControls ref through dynamic BiomeScene; wire ArrowKeys / +/− on the wrap |
 | `--text-lo` on `--surface-glass` may dip below 4.5:1 in some compositions | Moderate | Phase 5.5 | Per-surface contrast audit; bump token if needed |
 | Google Fonts not self-hosted → axe `uses-rel-preconnect` noise (currently skipped in Lighthouse) | Low | Phase 4 follow-up | Self-host or pre-render the woff2 set |
 

@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Move3d, Sprout, RotateCcw } from "lucide-react";
 import type { BiomeStatus } from "@/lib/types";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
@@ -36,6 +36,7 @@ export function BiomeCanvas({
 
   const planted = useBiomeStore((s) => s.plantedPoints.length);
   const resetPlanting = useBiomeStore((s) => s.resetPlanting);
+  const plantRandom = useBiomeStore((s) => s.plantRandom);
 
   // Only mount the WebGL scene while it's actually on screen — fully releasing
   // the GPU when scrolled away (honest "pause when offscreen", §4.4).
@@ -77,6 +78,18 @@ export function BiomeCanvas({
 
   const live3d = !use2D && onScreen && idle;
 
+  /** Pointer-less plant: keyboard users (Space / Enter on the focused canvas
+   * or the explicit button) get the same affordance as a tap. Camera orbit by
+   * keyboard is a tracked Phase 5.2 follow-up (needs an OrbitControls ref
+   * plumbed through the dynamically-loaded scene). */
+  function onCanvasKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (use2D) return;
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      plantRandom();
+    }
+  }
+
   return (
     <div className="relative flex h-full w-full flex-col items-center justify-center">
       <div className="pointer-events-none absolute left-3 top-3 z-10 flex items-center gap-1.5 text-xs text-text-lo">
@@ -88,9 +101,15 @@ export function BiomeCanvas({
 
       <div
         ref={wrapRef}
-        className="relative aspect-square w-full max-w-[420px]"
-        role="img"
-        aria-label={label}
+        className="relative aspect-square w-full max-w-[420px] rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-400"
+        role={use2D ? "img" : "application"}
+        aria-label={
+          use2D
+            ? label
+            : `${label}. Press Space or Enter to plant a tree. Tap or drag for pointer controls.`
+        }
+        tabIndex={use2D ? undefined : 0}
+        onKeyDown={onCanvasKeyDown}
       >
         {use2D ? (
           <BiomePoster health={health} />
@@ -130,6 +149,20 @@ export function BiomeCanvas({
             </button>
           )}
         </div>
+      )}
+
+      {/* Pointer-less planting affordance (Phase 5.2). Mirrors the canvas-tap
+          action for keyboard / switch / SR users; lives outside the canvas
+          stack so it's reachable by Tab order regardless of focus state. */}
+      {!use2D && (
+        <button
+          type="button"
+          onClick={plantRandom}
+          className="mt-2 inline-flex items-center gap-1.5 rounded-pill border border-border-subtle bg-surface-1 px-3 py-1.5 text-xs font-medium text-text-hi transition-colors hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-400"
+        >
+          <Sprout size={13} aria-hidden className="text-brand-400" />
+          Plant a tree
+        </button>
       )}
 
       {/* polite live region announces significant state changes */}

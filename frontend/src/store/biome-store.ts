@@ -30,6 +30,9 @@ export interface BiomeState {
   celebrate: () => void;
   endCelebration: () => void;
   plantTree: (p: PlantPoint) => void;
+  /** Plant a tree at a random unit-sphere direction — used by the keyboard /
+   * pointer-less "Plant a tree" button (Phase 5.2 of docs/IMPROVEMENT-PLAN.md). */
+  plantRandom: () => void;
   resetPlanting: () => void;
 }
 
@@ -78,6 +81,28 @@ export const useBiomeStore = create<BiomeState>((set) => ({
       plantedPoints: [...s.plantedPoints, p].slice(-MAX_PLANTED),
       celebrating: true,
     })),
+
+  plantRandom: () => {
+    // Uniformly distributed point on the unit sphere via Marsaglia's method.
+    // Existing planted points already follow the canvas-tap distribution; this
+    // mirrors that without any pointer dependency.
+    let x = 0;
+    let y = 0;
+    let s = 2;
+    while (s >= 1) {
+      x = Math.random() * 2 - 1;
+      y = Math.random() * 2 - 1;
+      s = x * x + y * y;
+    }
+    const factor = 2 * Math.sqrt(1 - s);
+    set((state) => ({
+      plantedPoints: [
+        ...state.plantedPoints,
+        [x * factor, y * factor, 1 - 2 * s] as PlantPoint,
+      ].slice(-MAX_PLANTED),
+      celebrating: true,
+    }));
+  },
 
   resetPlanting: () => set({ plantedPoints: [] }),
 }));
