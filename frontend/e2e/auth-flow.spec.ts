@@ -64,15 +64,23 @@ test.describe("auth flow", () => {
     page,
   }) => {
     // Smoke test: the form actually fires /auth/login. Catches regressions
-    // like minLength=12 silently blocking the demo password (we hit that
-    // when bumping the register policy).
+    // like minLength=12 silently blocking the demo password (we hit that when
+    // bumping the register policy). Uses `#id` selectors instead of label
+    // regexes because the visual "* required" indicator gets included in
+    // the label's accessible name in some browsers.
     await page.goto("/onboarding");
-    const switchToLogin = page.getByRole("button", { name: /sign in/i }).last();
-    if (await switchToLogin.isVisible()) {
-      await switchToLogin.click();
-    }
-    await page.getByLabel(/email/i).fill(DEMO_EMAIL);
-    await page.getByLabel(/^password$/i).fill(DEMO_PASSWORD);
+    // Wait for the AuthGate to render — `isVisible()` is sync and would race
+    // the hydration; assert the register heading instead so the click
+    // auto-waits behind the form ready.
+    await expect(
+      page.getByRole("heading", { name: /create your account/i }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: /sign in/i }).last().click();
+    await expect(
+      page.getByRole("heading", { name: /welcome back/i }),
+    ).toBeVisible();
+    await page.locator("#email").fill(DEMO_EMAIL);
+    await page.locator("#password").fill(DEMO_PASSWORD);
 
     const [loginRes] = await Promise.all([
       page.waitForResponse((r) => r.url().includes("/auth/login")),

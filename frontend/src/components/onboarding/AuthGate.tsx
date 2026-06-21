@@ -225,7 +225,10 @@ function PasswordField({
   return (
     <div>
       <label htmlFor={id} className="mb-1 block text-xs text-text-lo">
-        {label} <span className="text-danger">*</span>
+        {label}{" "}
+        <span aria-hidden="true" className="text-danger">
+          *
+        </span>
       </label>
       <div className="relative">
         <input

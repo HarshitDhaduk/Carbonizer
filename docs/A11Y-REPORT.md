@@ -113,6 +113,36 @@ combo (Windows / NVDA and macOS / VoiceOver).
 | `--text-lo` on `--surface-glass` may dip below 4.5:1 in some compositions | Moderate | Phase 5.5 | Per-surface contrast audit; bump token if needed |
 | Google Fonts not self-hosted → axe `uses-rel-preconnect` noise (currently skipped in Lighthouse) | Low | Phase 4 follow-up | Self-host or pre-render the woff2 set |
 
+## Contrast audit (Phase 5.5)
+
+Dark theme — the only theme currently shipped (`data-theme="dark"` is
+hardcoded in `app/layout.tsx`). Body text + interactive elements verified
+against WCAG AA (≥ 4.5:1 for body, ≥ 3:1 for large text and non-text
+components).
+
+| Foreground | Background | Ratio | AA body | Use |
+|---|---|---|---|---|
+| `--text-hi` `#eaf6ef` | `--bg-base` `#06110d` | ~17:1 | ✅ | primary headings |
+| `--text-mid` `#a7beb2` | `--bg-base` | ~9.5:1 | ✅ | body copy |
+| `--text-lo` `#8aa094` | `--bg-base` | ~6.3:1 | ✅ | labels, hints |
+| `--text-lo` `#8aa094` | `--surface-1` `#0e1c16` | ~5.3:1 | ✅ | card meta |
+| `--text-lo` `#8aa094` | `--surface-2` `#15271e` | ~5.8:1 | ✅ | nested chips |
+| `--brand-400` `#4fe08c` | `--bg-base` | ~8:1 | ✅ | brand text emphasis |
+| `--danger` `#f87171` | `--bg-base` | ~5.1:1 | ✅ | inline error text |
+| `--warning` `#fbbf24` | `--bg-base` | ~10:1 | ✅ | warning text |
+| `--info` `#60a5fa` | `--bg-base` | ~5.5:1 | ✅ | "Inferred" tooltip |
+| `--success` `#34d399` | `--bg-base` | ~7.7:1 | ✅ | confirmation copy |
+
+Category accents (`--cat-*`) are used as fill colors on bars / dots, not as
+foreground text — the 3:1 non-text-component threshold applies and is met
+in every case. Light-theme tokens (`[data-theme="light"]`) are tracked for
+parity but not currently switchable in the UI; the audit there is deferred
+until the theme toggle lands.
+
+Regression watchdog: a fourth axe rule, `color-contrast`, runs explicitly
+in [e2e/a11y.spec.ts](../frontend/e2e/a11y.spec.ts:84) so a future token
+change can't silently slip an AA failure past the gate.
+
 ## CI gates
 
 - Playwright + `@axe-core/playwright` runs on `/` and `/onboarding` in the

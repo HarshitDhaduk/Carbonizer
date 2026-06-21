@@ -1,14 +1,39 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, request, test } from "@playwright/test";
 
 /**
- * Accessibility smoke — Phase 3.3 of docs/IMPROVEMENT-PLAN.md (also seeds
- * the Phase 5 a11y baseline).
+ * Accessibility smoke — Phase 3.3 seeded; Phase 5.5 extended to cover an
+ * authed surface (the dashboard) and to fail explicitly on color-contrast
+ * regressions, the violation we caught + fixed in Phase 3.3.
  *
- * Runs axe-core against the public surfaces that don't require auth. The gate
- * is `serious` + `critical` only — moderate / minor noise belongs in a focused
- * follow-up PR so this suite stays a high-signal blocker.
+ * Gate: no `serious` / `critical` axe-core violations on any covered route.
+ * Moderate / minor noise is tracked in docs/A11Y-REPORT.md, not blocked here.
  */
+
+const DEMO_EMAIL = "demo@carbonizer.app";
+const DEMO_PASSWORD = "demo12345";
+const API_BASE = "http://127.0.0.1:8100/api/v1/";
+
+type ImpactCount = Record<string, number>;
+
+function blocking(
+  violations: Awaited<ReturnType<AxeBuilder["analyze"]>>["violations"],
+) {
+  return violations.filter(
+    (v) => v.impact === "serious" || v.impact === "critical",
+  );
+}
+
+function summary(
+  violations: Awaited<ReturnType<AxeBuilder["analyze"]>>["violations"],
+): string {
+  if (violations.length === 0) return "no blocking violations";
+  const byRule: ImpactCount = {};
+  for (const v of violations) byRule[v.id] = (byRule[v.id] ?? 0) + v.nodes.length;
+  return violations
+    .map((v) => `${v.id} (${v.impact}): ${v.help} — ${byRule[v.id]} node(s)`)
+    .join("\n");
+}
 
 test.describe("accessibility (axe-core, WCAG 2 AA)", () => {
   test("landing page has no serious/critical violations", async ({ page }) => {
@@ -16,30 +41,55 @@ test.describe("accessibility (axe-core, WCAG 2 AA)", () => {
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa"])
       .analyze();
-    const blocking = results.violations.filter(
-      (v) => v.impact === "serious" || v.impact === "critical",
-    );
-    expect(
-      blocking,
-      blocking.map((v) => `${v.id} (${v.impact}): ${v.help}`).join("\n") ||
-        "no blocking violations",
-    ).toEqual([]);
+    const blockingViolations = blocking(results.violations);
+    expect(blockingViolations, summary(blockingViolations)).toEqual([]);
   });
 
   test("auth gate has no serious/critical violations", async ({ page }) => {
     await page.goto("/onboarding");
-    // Wait for the AuthGate to render (the auth-store probes /auth/me first).
     await page.waitForLoadState("networkidle");
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa"])
       .analyze();
-    const blocking = results.violations.filter(
-      (v) => v.impact === "serious" || v.impact === "critical",
-    );
+    const blockingViolations = blocking(results.violations);
+    expect(blockingViolations, summary(blockingViolations)).toEqual([]);
+  });
+
+  test("dashboard (authed) has no serious/critical violations", async ({
+    page,
+    context,
+  }) => {
+    // Seed-mode demo login through the API so we can copy the cookies onto the
+    // browser context — the SPA then renders the dashboard end-to-end.
+    const apiContext = await request.newContext({ baseURL: API_BASE });
+    const loginRes = await apiContext.post("auth/login", {
+      form: { username: DEMO_EMAIL, password: DEMO_PASSWORD },
+    });
+    expect(loginRes.status()).toBe(200);
+    const state = await apiContext.storageState();
+    await context.addCookies(state.cookies);
+
+    await page.goto("/dashboard");
+    await page.waitForLoadState("networkidle");
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa"])
+      .analyze();
+    const blockingViolations = blocking(results.violations);
+    expect(blockingViolations, summary(blockingViolations)).toEqual([]);
+  });
+
+  test("color-contrast regression watchdog", async ({ page }) => {
+    // Phase 3.3 caught `--text-lo` failing WCAG AA on the auth gate. This test
+    // pins that contract specifically so a future token change can't reintroduce
+    // it without a test failure pointing the finger at the rule.
+    await page.goto("/onboarding");
+    await page.waitForLoadState("networkidle");
+    const results = await new AxeBuilder({ page })
+      .withRules(["color-contrast"])
+      .analyze();
     expect(
-      blocking,
-      blocking.map((v) => `${v.id} (${v.impact}): ${v.help}`).join("\n") ||
-        "no blocking violations",
+      results.violations,
+      summary(results.violations),
     ).toEqual([]);
   });
 });
