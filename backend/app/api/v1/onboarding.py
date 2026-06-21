@@ -6,11 +6,12 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_user
+from app.core.cache import cache_public_immutable, set_etag
 from app.core.rate_limit import limiter
 from app.db.session import get_db
 from app.models.emission import FootprintSnapshot
@@ -86,8 +87,16 @@ async def _get_or_create_profile(
 
 
 @router.get("/questions", response_model=Questionnaire)
-async def get_questions() -> Questionnaire:
-    """Server-defined questionnaire — the client renders from this."""
+async def get_questions(request: Request, response: Response) -> Questionnaire:
+    """Server-defined questionnaire — the client renders from this.
+
+    Cache-Control: public, max-age=3600, immutable + an ETag keyed on
+    ``QUESTIONNAIRE_VERSION``. When the questionnaire is rev'd (a new
+    question, a new option), the ETag changes and clients pick up the
+    new payload on the next request.
+    """
+    set_etag(request, response, parts=("questionnaire", estimator.QUESTIONNAIRE_VERSION))
+    cache_public_immutable(response, max_age=3600)
     return estimator.build_questionnaire()
 
 

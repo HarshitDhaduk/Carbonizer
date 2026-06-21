@@ -20,8 +20,17 @@ _sessionmaker: async_sessionmaker[AsyncSession] | None = None
 def get_engine() -> AsyncEngine:
     global _engine, _sessionmaker
     if _engine is None:
+        # Phase 4.3 tuning. Defaults come from settings so deploys can override
+        # via env (Render's free tier has ~95 connection budget; staying under
+        # pool_size + max_overflow keeps headroom for Alembic + ad-hoc tools).
         _engine = create_async_engine(
-            settings.database_url, pool_pre_ping=True, future=True
+            settings.database_url,
+            pool_pre_ping=True,
+            pool_size=settings.db_pool_size,
+            max_overflow=settings.db_max_overflow,
+            pool_recycle=settings.db_pool_recycle_s,
+            echo=settings.echo_sql,
+            future=True,
         )
         _sessionmaker = async_sessionmaker(
             _engine, expire_on_commit=False, autoflush=False

@@ -69,6 +69,16 @@ class Settings(BaseSettings):
     use_db: bool = False
     database_url: str = DEFAULT_DATABASE_URL
 
+    # Connection pool (Phase 4.3). `pool_size` is the steady-state working set
+    # per process; `max_overflow` is the burst headroom. `pool_recycle` recycles
+    # connections older than ~half an hour to dodge Postgres' default 60 min
+    # idle-timeout footgun on Neon's free tier.
+    db_pool_size: int = 10
+    db_max_overflow: int = 20
+    db_pool_recycle_s: int = 1800
+    # SQL echo for local debugging (extremely chatty — never enable in prod).
+    echo_sql: bool = False
+
     # --- demo credentials (seed mode) ---
     demo_email: str = "demo@carbonizer.app"
     demo_password: str = DEFAULT_DEMO_PASSWORD

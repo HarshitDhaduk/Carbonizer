@@ -418,6 +418,76 @@ async def test_login_rate_limit_fires(
     assert "retry-after" in last.headers
 
 
+# --- Phase 4: efficiency -----------------------------------------------------
+
+
+async def test_summary_sets_private_cache(
+    client: AsyncClient, api_prefix: str
+) -> None:
+    """GET /footprint/summary → Cache-Control: private, max-age=60."""
+    resp = await client.get(f"{api_prefix}/footprint/summary")
+    cc = resp.headers.get("cache-control", "")
+    assert "private" in cc
+    assert "max-age=60" in cc
+
+
+async def test_benchmark_sets_private_cache(
+    client: AsyncClient, api_prefix: str
+) -> None:
+    resp = await client.get(f"{api_prefix}/community/benchmark")
+    cc = resp.headers.get("cache-control", "")
+    assert "private" in cc
+    assert "max-age=300" in cc
+
+
+async def test_questions_sets_public_immutable_cache_and_etag(
+    client: AsyncClient, api_prefix: str
+) -> None:
+    """The questionnaire is server-defined and version-cut; cache-aggressive."""
+    resp = await client.get(f"{api_prefix}/onboarding/questions")
+    cc = resp.headers.get("cache-control", "")
+    assert "public" in cc
+    assert "immutable" in cc
+    assert "max-age=3600" in cc
+    assert resp.headers.get("etag")  # ETag header present
+
+
+async def test_questions_etag_returns_304_on_repeat(
+    client: AsyncClient, api_prefix: str
+) -> None:
+    """A second request carrying ``If-None-Match`` of the first ETag → 304."""
+    first = await client.get(f"{api_prefix}/onboarding/questions")
+    etag = first.headers["etag"]
+    second = await client.get(
+        f"{api_prefix}/onboarding/questions",
+        headers={"If-None-Match": etag},
+    )
+    assert second.status_code == 304
+
+
+async def test_metrics_endpoint_is_exposed(client: AsyncClient) -> None:
+    """Phase 4.3 — /metrics exposes the default prometheus_client registry."""
+    resp = await client.get("/metrics")
+    assert resp.status_code == 200
+    # The default registry always ships process_* + python_* gauges in
+    # text-exposition format.
+    body = resp.text
+    assert "process_" in body or "python_" in body
+
+
+async def test_gzip_compresses_large_responses(
+    client: AsyncClient, api_prefix: str
+) -> None:
+    """The dashboard summary is JSON > 1KB so GZip should kick in when the
+    client advertises support."""
+    resp = await client.get(
+        f"{api_prefix}/footprint/summary",
+        headers={"Accept-Encoding": "gzip"},
+    )
+    assert resp.status_code == 200
+    assert resp.headers.get("content-encoding") == "gzip"
+
+
 async def test_audit_record_seed_mode_is_noop() -> None:
     """In seed mode (db=None), audit.record() must not raise."""
     from app.services import audit

@@ -12,6 +12,7 @@ passlib[argon2]==1.7.4
 python-multipart==0.0.31
 slowapi==0.1.9
 cryptography==48.0.1
+prometheus-client==0.25.0
 
 # dev / test
 pytest==9.0.3

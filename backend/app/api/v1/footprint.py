@@ -5,10 +5,11 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_optional_user, require_user
+from app.core.cache import cache_private
 from app.db.session import get_db
 from app.schemas.footprint import Attribution, FootprintSummary
 from app.services import attribution, dashboard
@@ -18,10 +19,14 @@ router = APIRouter(prefix="/footprint", tags=["footprint"])
 
 @router.get("/summary", response_model=FootprintSummary)
 async def get_summary(
+    response: Response,
     range: Annotated[str, Query(pattern="^(12w|6m|1y)$")] = "12w",
     db: AsyncSession | None = Depends(get_db),
     subject: str | None = Depends(get_optional_user),
 ) -> FootprintSummary:
+    # Per docs/API-DESIGN.md §9 — the dashboard's primary read is private to
+    # the user and tolerates a minute of staleness (recompute runs on connect).
+    cache_private(response, max_age=60)
     return await dashboard.get_footprint_summary(db, range, subject)
 
 
