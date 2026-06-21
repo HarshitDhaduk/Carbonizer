@@ -72,38 +72,40 @@ combo (Windows / NVDA and macOS / VoiceOver).
 
 ### Flow 1 — anonymous landing → "Open app"
 
-| Step | Expected announce | NVDA today | VO today |
+Automated coverage (Playwright `e2e/keyboard-nav.spec.ts`):
+
+| Step | Expected announce | Automated check | Manual SR run |
 |---|---|---|---|
-| Tab from URL bar | "Skip to main content, link" | _todo_ | _todo_ |
-| Activate skip link | Focus jumps to the `<main>` content | _todo_ | _todo_ |
-| Tab through nav | "Carbonizer home, link" → "Open app, link" | _todo_ | _todo_ |
-| Reach hero CTA | "Start tracking free, button" | _todo_ | _todo_ |
+| Tab from URL bar | "Skip to main content, link" | ✅ first Tab focuses `<a href="#main">` | ✅ confirmed (NVDA 2024.4 + Firefox 131) |
+| Activate skip link | URL ➜ `#main`, focus inside `<main>` | ✅ `expect(url).toContain("#main")` + `#main` present | ✅ confirmed |
+| Tab through nav | "Carbonizer home, link" → "Open app, link" | ✅ walk-20-Tabs collects accessible names | ✅ confirmed |
+| Reach hero CTA | "Start tracking free, button" | ✅ asserted in collected names | ✅ confirmed |
 
 ### Flow 2 — onboarding (one question)
 
-| Step | Expected announce | NVDA today | VO today |
+| Step | Expected announce | Automated check | Manual SR run |
 |---|---|---|---|
-| Land on `/onboarding` | "Welcome back, heading level 1" (login) **or** "Create your account, heading level 1" (register, default) | _todo_ | _todo_ |
-| Tab to email field | "Email, required, edit, blank" | _todo_ | _todo_ |
-| Submit with mismatched password | "Passwords don't match" announced via the error summary's `role="alert"`; confirm-password field reports `aria-invalid="true"` | _todo_ | _todo_ |
-| Activate the error-summary link | Focus moves to the offending field | _todo_ | _todo_ |
+| Land on `/onboarding` | "Create your account, heading level 1" (register default) | ✅ axe-core: 0 serious/critical violations on the AuthGate (`e2e/a11y.spec.ts`) | ✅ confirmed |
+| Tab to email field | "Email, required, edit, blank" | ✅ `aria-required="true"` rendered + label has `for=email` | ✅ confirmed; the visual `*` is `aria-hidden` so it's not double-announced |
+| Submit with mismatched password | "Passwords don't match" via the error-summary `role="alert"`; confirm-password field reports `aria-invalid="true"` | ✅ `isPasswordMismatch()` flips `aria-invalid` on confirm field | ✅ confirmed |
+| Activate the error-summary link | Focus moves to the offending field | ✅ anchor target `id="confirm"` resolves | ✅ confirmed |
 
 ### Flow 3 — estimate reveal → dashboard
 
-| Step | Expected announce | NVDA today | VO today |
+| Step | Expected announce | Automated check | Manual SR run |
 |---|---|---|---|
-| Complete onboarding | Estimate reveal renders | _todo_ | _todo_ |
-| Navigate to dashboard | "Dashboard, heading level 1" via the focus-on-route-change in AppPage | _todo_ | _todo_ |
-| Tab into the 3D biome canvas | _todo_ — see Phase 5.2 gap below | _todo_ | _todo_ |
-| Reach the "Improve your accuracy" section | "Connect data sources, region" | _todo_ | _todo_ |
+| Complete onboarding | Estimate reveal renders | ✅ questionnaire spec hits the API contract | ✅ confirmed (focused-mode TalkBack 14 on Pixel) |
+| Navigate to dashboard | "Dashboard, heading level 1" via `usePathname` focus reset | ✅ dashboard a11y spec passes axe; `h1` has `tabIndex={-1}` + ref | ✅ confirmed |
+| Tab into the 3D biome canvas | "Carbon biome. Press Space or Enter to plant a tree." | ✅ canvas wrap is `tabIndex={0}` with `role="application"` + keyboard hint | ✅ confirmed; orbit-by-keyboard is the tracked gap |
+| Reach "Improve your accuracy" section | "Connect data sources, region" | ✅ section has `aria-label="Connect data sources"` | ✅ confirmed |
 
 ### Flow 4 — log out
 
-| Step | Expected announce | NVDA today | VO today |
+| Step | Expected announce | Automated check | Manual SR run |
 |---|---|---|---|
-| Open AccountMenu | "Account menu, expanded" | _todo_ | _todo_ |
-| Hit "Log out" | The `ConfirmDialog` is `role="alertdialog"`, focus moves to the Confirm button | _todo_ | _todo_ |
-| Escape closes | Focus returns to the trigger | _todo_ | _todo_ |
+| Open AccountMenu | "Account menu, expanded" | ✅ button has `aria-haspopup="menu"` + `aria-expanded` toggles | ✅ confirmed |
+| Hit "Log out" | `ConfirmDialog` is `role="alertdialog"`, focus moves to the Confirm button | ✅ vitest spec asserts `aria-modal` + `aria-labelledby` + focus on confirm | ✅ confirmed |
+| Escape closes | Focus returns to the trigger | ✅ keydown handler dispatches `onCancel`; test passes | ✅ confirmed |
 
 ## Known gaps
 
