@@ -45,6 +45,41 @@ async def create_export_job(db: AsyncSession, user_id: uuid.UUID) -> DsrJob:
     return job
 
 
+async def _fetch_one(
+    db: AsyncSession, model: Any, user_id: uuid.UUID
+) -> object | None:
+    """Return the single user-scoped row of ``model``, if any."""
+    result: Any = await db.execute(select(model).where(model.user_id == user_id))
+    row: object | None = result.scalar_one_or_none()
+    return row
+
+
+async def _fetch_many(
+    db: AsyncSession, model: Any, user_id: uuid.UUID
+) -> list[object]:
+    """Return every user-scoped row of ``model`` (raw_* and ledger tables)."""
+    result: Any = await db.execute(select(model).where(model.user_id == user_id))
+    return list(result.scalars().all())
+
+
+def _user_section(user: User) -> dict[str, Any]:
+    """User profile fields shaped for the export bundle."""
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "region": user.region,
+        "target_tco2e": (
+            float(user.target_tco2e) if user.target_tco2e is not None else None
+        ),
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }
+
+
+def _connection_row(conn: object) -> dict[str, Any]:
+    """A single Connection row with the encrypted access token redacted."""
+    return {k: _safe(v) for k, v in _dump(conn).items() if k != "access_token_enc"}
+
+
 async def assemble_export_bundle(
     db: AsyncSession, user_id: uuid.UUID
 ) -> dict[str, Any]:
@@ -52,93 +87,29 @@ async def assemble_export_bundle(
 
     Pulled from every table holding personal data. Provider access tokens are
     intentionally omitted — the export tells the user *what* is connected,
-    not the credential. ``connections`` carries enough metadata for the user
-    to know which third party held what.
+    not the credential.
     """
-    user = (
-        await db.execute(select(User).where(User.id == user_id))
-    ).scalar_one_or_none()
-    if user is None:
+    user_obj = await _fetch_one(db, User, user_id)
+    if user_obj is None:
         # User vanished between the request and the download; surface an empty
         # bundle rather than a 500.
         return {"user_id": str(user_id), "user": None}
 
-    privacy = (
-        await db.execute(
-            select(PrivacySettings).where(PrivacySettings.user_id == user_id)
-        )
-    ).scalar_one_or_none()
-    profile = (
-        await db.execute(
-            select(OnboardingProfile).where(OnboardingProfile.user_id == user_id)
-        )
-    ).scalar_one_or_none()
-    connections = (
-        (await db.execute(select(Connection).where(Connection.user_id == user_id)))
-        .scalars()
-        .all()
-    )
-    transactions = (
-        (
-            await db.execute(
-                select(RawTransaction).where(RawTransaction.user_id == user_id)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    trips = (
-        (await db.execute(select(RawTrip).where(RawTrip.user_id == user_id)))
-        .scalars()
-        .all()
-    )
-    readings = (
-        (
-            await db.execute(
-                select(RawEnergyRead).where(RawEnergyRead.user_id == user_id)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    ledger = (
-        (
-            await db.execute(
-                select(LedgerEntry).where(LedgerEntry.user_id == user_id)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    snapshots = (
-        (
-            await db.execute(
-                select(FootprintSnapshot).where(
-                    FootprintSnapshot.user_id == user_id
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
+    privacy = await _fetch_one(db, PrivacySettings, user_id)
+    profile = await _fetch_one(db, OnboardingProfile, user_id)
+    connections = await _fetch_many(db, Connection, user_id)
+    transactions = await _fetch_many(db, RawTransaction, user_id)
+    trips = await _fetch_many(db, RawTrip, user_id)
+    readings = await _fetch_many(db, RawEnergyRead, user_id)
+    ledger = await _fetch_many(db, LedgerEntry, user_id)
+    snapshots = await _fetch_many(db, FootprintSnapshot, user_id)
 
     return {
         "exported_at": datetime.now(UTC).isoformat(),
-        "user": {
-            "id": str(user.id),
-            "email": user.email,
-            "region": user.region,
-            "target_tco2e": float(user.target_tco2e)
-            if user.target_tco2e is not None
-            else None,
-            "created_at": user.created_at.isoformat() if user.created_at else None,
-        },
+        "user": _user_section(user_obj),  # type: ignore[arg-type]
         "privacy_settings": _dump(privacy),
         "onboarding_profile": _dump(profile),
-        "connections": [
-            {k: _safe(v) for k, v in _dump(c).items() if k != "access_token_enc"}
-            for c in connections
-        ],
+        "connections": [_connection_row(c) for c in connections],
         "raw_transactions": [_dump(t) for t in transactions],
         "raw_trips": [_dump(t) for t in trips],
         "raw_energy_readings": [_dump(r) for r in readings],

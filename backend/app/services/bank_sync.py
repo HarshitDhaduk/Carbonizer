@@ -217,45 +217,33 @@ def _merge_categories(
     return categories
 
 
-async def recompute_footprint(
+async def _load_prior(
     db: AsyncSession, user_id: uuid.UUID
-) -> FootprintSummary:
-    """Merge measured signals over the prior estimate and persist the snapshot."""
-    now = datetime.now(UTC)
-    since = now - timedelta(days=WINDOW_DAYS + 1)
-
-    spend_tco2e, total_spend_gbp = await _collect_spend(db, user_id, since)
-    bank_connected = total_spend_gbp > 0
-    monthly_spend_gbp = total_spend_gbp * 30 / WINDOW_DAYS
-
-    energy_activity = await _collect_energy(db, user_id, since)
-
-    # prior snapshot (the estimate) to merge against
-    snap_res = await db.execute(
+) -> tuple[FootprintSnapshot | None, dict[Category, CategoryBreakdown], float | None]:
+    """Fetch the prior snapshot + its per-category breakdown + total."""
+    res = await db.execute(
         select(FootprintSnapshot).where(
             FootprintSnapshot.user_id == user_id, FootprintSnapshot.range == "12w"
         )
     )
-    snapshot = snap_res.scalar_one_or_none()
-    prior: dict[Category, CategoryBreakdown] = {}
-    prior_total: float | None = None
-    if snapshot is not None and snapshot.payload:
-        prior_summary = FootprintSummary.model_validate(snapshot.payload)
-        prior = {c.category: c for c in prior_summary.categories}
-        prior_total = float(prior_summary.total_tco2e)
+    snapshot = res.scalar_one_or_none()
+    if snapshot is None or not snapshot.payload:
+        return snapshot, {}, None
+    prior_summary = FootprintSummary.model_validate(snapshot.payload)
+    prior = {c.category: c for c in prior_summary.categories}
+    return snapshot, prior, float(prior_summary.total_tco2e)
 
-    categories = _merge_categories(
-        spend_tco2e=spend_tco2e,
-        energy_activity=energy_activity,
-        prior=prior,
-        bank_connected=bank_connected,
-        monthly_spend_gbp=monthly_spend_gbp,
-    )
 
+def _build_summary(
+    categories: list[CategoryBreakdown],
+    prior_total: float | None,
+    now: datetime,
+) -> FootprintSummary:
+    """Roll category rows up into a ``FootprintSummary`` with delta + biome."""
     total = round(sum(c.tco2e for c in categories), 2)
     health = estimator.health_for_total(total)
     total_delta, total_trend = _delta(prior_total, total)
-    summary = FootprintSummary(
+    return FootprintSummary(
         total_tco2e=total,
         delta_pct=total_delta,
         trend=total_trend,
@@ -267,6 +255,15 @@ async def recompute_footprint(
         generated_at=now,
     )
 
+
+def _persist_snapshot(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    snapshot: FootprintSnapshot | None,
+    summary: FootprintSummary,
+    now: datetime,
+) -> None:
+    """Insert-or-update the cached snapshot row from a fresh summary."""
     if snapshot is None:
         snapshot = FootprintSnapshot(user_id=user_id, range="12w")
         db.add(snapshot)
@@ -277,4 +274,27 @@ async def recompute_footprint(
     snapshot.target_tco2e = summary.target_tco2e
     snapshot.payload = summary.model_dump(mode="json")
     snapshot.generated_at = now
+
+
+async def recompute_footprint(
+    db: AsyncSession, user_id: uuid.UUID
+) -> FootprintSummary:
+    """Merge measured signals over the prior estimate and persist the snapshot."""
+    now = datetime.now(UTC)
+    since = now - timedelta(days=WINDOW_DAYS + 1)
+
+    spend_tco2e, total_spend_gbp = await _collect_spend(db, user_id, since)
+    energy_activity = await _collect_energy(db, user_id, since)
+    snapshot, prior, prior_total = await _load_prior(db, user_id)
+
+    categories = _merge_categories(
+        spend_tco2e=spend_tco2e,
+        energy_activity=energy_activity,
+        prior=prior,
+        bank_connected=total_spend_gbp > 0,
+        monthly_spend_gbp=total_spend_gbp * 30 / WINDOW_DAYS,
+    )
+
+    summary = _build_summary(categories, prior_total, now)
+    _persist_snapshot(db, user_id, snapshot, summary, now)
     return summary
