@@ -127,14 +127,14 @@ def _breakdown(
     )
 
 
-async def recompute_footprint(
-    db: AsyncSession, user_id: uuid.UUID
-) -> FootprintSummary:
-    """Merge measured signals over the prior estimate and persist the snapshot."""
-    now = datetime.now(UTC)
-    since = now - timedelta(days=WINDOW_DAYS + 1)
+async def _collect_spend(
+    db: AsyncSession, user_id: uuid.UUID, since: datetime
+) -> tuple[dict[Category, float], float]:
+    """Sum spend-based tCO2e per category + GBP turnover over the window.
 
-    # spend-based tCO2e per category (merchant-aware, R2)
+    Returns ``(spend_tco2e, total_spend_gbp)``. Merchant-aware (R2): the
+    carbon factor varies by merchant within an MCC.
+    """
     tx_res = await db.execute(
         select(RawTransaction).where(
             RawTransaction.user_id == user_id, RawTransaction.booked_at >= since
@@ -148,12 +148,13 @@ async def recompute_footprint(
         cat = carbon.categorize(txn.mcc)
         kg = carbon.co2e_kg(cat, gbp, txn.merchant) * _ANNUALIZE
         spend_tco2e[cat] = spend_tco2e.get(cat, 0.0) + kg / 1000
+    return spend_tco2e, total_spend_gbp
 
-    # bank "hub" signal for R1 imputation (avg monthly spend)
-    bank_connected = total_spend_gbp > 0
-    monthly_spend_gbp = total_spend_gbp * 30 / WINDOW_DAYS
 
-    # activity-based energy tCO2e from metered reads
+async def _collect_energy(
+    db: AsyncSession, user_id: uuid.UUID, since: datetime
+) -> float | None:
+    """Activity-based annual energy tCO2e from metered reads, or None if no meter."""
     en_res = await db.execute(
         select(RawEnergyRead).where(
             RawEnergyRead.user_id == user_id,
@@ -166,23 +167,23 @@ async def recompute_footprint(
         has_energy = True
         gi = float(r.grid_intensity) if r.grid_intensity is not None else None
         energy_kg += carbon.energy_co2e_kg(float(r.kwh), r.fuel, gi)
-    energy_activity = (energy_kg / 1000 * _ANNUALIZE) if has_energy else None
+    return (energy_kg / 1000 * _ANNUALIZE) if has_energy else None
 
-    # prior snapshot (the estimate) to merge against
-    snap_res = await db.execute(
-        select(FootprintSnapshot).where(
-            FootprintSnapshot.user_id == user_id, FootprintSnapshot.range == "12w"
-        )
-    )
-    snapshot = snap_res.scalar_one_or_none()
-    prior: dict[Category, CategoryBreakdown] = {}
-    prior_total: float | None = None
-    if snapshot is not None and snapshot.payload:
-        prior_summary = FootprintSummary.model_validate(snapshot.payload)
-        prior = {c.category: c for c in prior_summary.categories}
-        prior_total = float(prior_summary.total_tco2e)
 
-    # merge with precedence: activity > spend > imputed (R1) > estimated
+def _merge_categories(
+    *,
+    spend_tco2e: dict[Category, float],
+    energy_activity: float | None,
+    prior: dict[Category, CategoryBreakdown],
+    bank_connected: bool,
+    monthly_spend_gbp: float,
+) -> list[CategoryBreakdown]:
+    """Apply the data-quality hierarchy activity > spend > imputed > estimated.
+
+    For each display category, pick the highest-quality signal we have. R1
+    fires when the bank is connected but a category has no direct transactions
+    — we impute from the hub signal rather than fall back to the flat estimate.
+    """
     categories: list[CategoryBreakdown] = []
     for cat in _DISPLAY:
         if cat is Category.energy and energy_activity is not None:
@@ -194,8 +195,6 @@ async def recompute_footprint(
                 _breakdown(cat, spend_tco2e[cat], CalcMethod.spend, prior)
             )
         elif cat in prior and bank_connected:
-            # R1: bank connected but this category has no direct transactions —
-            # impute it from the bank hub signal instead of the flat estimate.
             imp_v, conf = impute.impute_from_bank(
                 float(prior[cat].tco2e), monthly_spend_gbp
             )
@@ -215,6 +214,43 @@ async def recompute_footprint(
                     confidence=impute.CONFIDENCE[CalcMethod.estimated],
                 )
             )
+    return categories
+
+
+async def recompute_footprint(
+    db: AsyncSession, user_id: uuid.UUID
+) -> FootprintSummary:
+    """Merge measured signals over the prior estimate and persist the snapshot."""
+    now = datetime.now(UTC)
+    since = now - timedelta(days=WINDOW_DAYS + 1)
+
+    spend_tco2e, total_spend_gbp = await _collect_spend(db, user_id, since)
+    bank_connected = total_spend_gbp > 0
+    monthly_spend_gbp = total_spend_gbp * 30 / WINDOW_DAYS
+
+    energy_activity = await _collect_energy(db, user_id, since)
+
+    # prior snapshot (the estimate) to merge against
+    snap_res = await db.execute(
+        select(FootprintSnapshot).where(
+            FootprintSnapshot.user_id == user_id, FootprintSnapshot.range == "12w"
+        )
+    )
+    snapshot = snap_res.scalar_one_or_none()
+    prior: dict[Category, CategoryBreakdown] = {}
+    prior_total: float | None = None
+    if snapshot is not None and snapshot.payload:
+        prior_summary = FootprintSummary.model_validate(snapshot.payload)
+        prior = {c.category: c for c in prior_summary.categories}
+        prior_total = float(prior_summary.total_tco2e)
+
+    categories = _merge_categories(
+        spend_tco2e=spend_tco2e,
+        energy_activity=energy_activity,
+        prior=prior,
+        bank_connected=bank_connected,
+        monthly_spend_gbp=monthly_spend_gbp,
+    )
 
     total = round(sum(c.tco2e for c in categories), 2)
     health = estimator.health_for_total(total)

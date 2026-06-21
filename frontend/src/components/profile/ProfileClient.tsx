@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import { LogOut, ShieldCheck } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { DataConnection, Question } from "@/lib/types";
 import { queries } from "@/lib/queries";
-import { useAuthStore } from "@/store/auth-store";
+import { useLogoutWithConfirm } from "@/lib/use-logout-with-confirm";
 import { visibleQuestions } from "@/lib/questionnaire";
 import { formatCo2e } from "@/lib/format";
 import { AppPage } from "@/components/layout/AppPage";
@@ -23,8 +22,8 @@ export function ProfileClient() {
 }
 
 function ProfileContent() {
-  const logout = useAuthStore((s) => s.logout);
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const { confirmOpen, setConfirmOpen, requestLogout, confirmLogout } =
+    useLogoutWithConfirm();
 
   const me = useQuery(queries.me());
   const connections = useQuery(queries.connections());
@@ -38,11 +37,6 @@ function ProfileContent() {
     questionnaire.isPending;
   const error =
     me.error ?? connections.error ?? profile.error ?? questionnaire.error;
-
-  async function confirmLogout() {
-    await logout();
-    window.location.assign("/");
-  }
 
   if (error)
     return (
@@ -134,11 +128,7 @@ function ProfileContent() {
       </section>
 
       {/* sign out */}
-      <Button
-        variant="danger"
-        className="w-full"
-        onClick={() => setConfirmOpen(true)}
-      >
+      <Button variant="danger" className="w-full" onClick={requestLogout}>
         <LogOut size={16} aria-hidden /> Log out
       </Button>
 

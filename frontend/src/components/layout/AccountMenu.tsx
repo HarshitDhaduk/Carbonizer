@@ -3,25 +3,18 @@
 import { useState } from "react";
 import { LogOut } from "lucide-react";
 import { useAuthStore } from "@/store/auth-store";
+import { useLogoutWithConfirm } from "@/lib/use-logout-with-confirm";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { cn } from "@/lib/cn";
 
 /** Compact account chip with a logout menu (confirmed via a modal). */
 export function AccountMenu({ className }: { className?: string }) {
   const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
   const [open, setOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const { confirmOpen, setConfirmOpen, confirmLogout } = useLogoutWithConfirm();
 
   const email = user?.email ?? "Account";
   const initial = email.charAt(0).toUpperCase();
-
-  async function confirmLogout() {
-    await logout();
-    // hard navigation to the landing page — avoids the dashboard auth-guard
-    // racing us to /onboarding when the user clears, and fully resets state.
-    window.location.assign("/");
-  }
 
   return (
     <div className={cn("relative", className)}>
