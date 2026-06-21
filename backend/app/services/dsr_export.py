@@ -90,9 +90,10 @@ async def assemble_export_bundle(
     not the credential.
     """
     user_obj = await _fetch_one(db, User, user_id)
-    if user_obj is None:
+    if not isinstance(user_obj, User):
         # User vanished between the request and the download; surface an empty
-        # bundle rather than a 500.
+        # bundle rather than a 500. (isinstance also narrows the type for mypy
+        # so the _user_section call below doesn't need a `cast` or ignore.)
         return {"user_id": str(user_id), "user": None}
 
     privacy = await _fetch_one(db, PrivacySettings, user_id)
@@ -106,7 +107,7 @@ async def assemble_export_bundle(
 
     return {
         "exported_at": datetime.now(UTC).isoformat(),
-        "user": _user_section(user_obj),  # type: ignore[arg-type]
+        "user": _user_section(user_obj),
         "privacy_settings": _dump(privacy),
         "onboarding_profile": _dump(profile),
         "connections": [_connection_row(c) for c in connections],

@@ -7,8 +7,9 @@ Docs: http://localhost:8000/docs  ·  OpenAPI: /api/v1/openapi.json
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from typing import cast
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +18,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from starlette.requests import Request
 from starlette.responses import Response
 
 from app.api.v1.router import api_router
@@ -130,9 +132,14 @@ app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # slowapi state + 429 handler. slowapi's handler is typed against its own
-# RateLimitExceeded subclass; Starlette wants the broader Exception signature.
+# `RateLimitExceeded` subclass; Starlette wants the broader `Exception`
+# signature. Casting at the boundary is type-safe (the subclass *is* an
+# Exception) and lets us drop the `# type: ignore` line.
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+_StarletteHandler = Callable[[Request, Exception], Response | Awaitable[Response]]
+app.add_exception_handler(
+    RateLimitExceeded, cast(_StarletteHandler, _rate_limit_exceeded_handler)
+)
 
 app.include_router(api_router, prefix=settings.api_v1_prefix)
 

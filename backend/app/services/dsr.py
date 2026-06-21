@@ -21,7 +21,7 @@ import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.connection import Connection
@@ -158,7 +158,7 @@ async def _purge_user(db: AsyncSession, user_id: uuid.UUID) -> None:
     """
     # null out actor in audit log so the rows survive but anonymize
     await db.execute(
-        AuditLog.__table__.update()  # type: ignore[attr-defined]
+        update(AuditLog)
         .where(AuditLog.actor_user_id == user_id)
         .values(actor_user_id=None)
     )
