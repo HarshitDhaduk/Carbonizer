@@ -6,7 +6,7 @@ pydantic-settings==2.6.1
 sqlalchemy[asyncio]==2.0.36
 asyncpg==0.30.0
 alembic==1.14.0
-PyJWT==2.10.1
+PyJWT==2.13.0
 passlib[argon2]==1.7.4
 python-multipart==0.0.17
 slowapi==0.1.9
