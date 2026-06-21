@@ -46,10 +46,15 @@ class Settings(BaseSettings):
     access_cookie_name: str = "cb_access"
     refresh_cookie_name: str = "cb_refresh"
     csrf_cookie_name: str = "cb_csrf"
-    # SameSite=Lax balances CSRF protection (browsers don't send the cookie on
-    # cross-site form posts) with usability (top-level navigation still carries
-    # it, so a deep link from email works). Lax is the modern browser default.
-    cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+    # Cookie cross-site policy. In dev (same host: localhost), Lax is the right
+    # call — protects against cross-site form-post CSRF without sacrificing
+    # the deep-link-from-email use case. In production with the frontend on
+    # one origin (Vercel) and the API on another (Render), Lax cookies are
+    # NOT sent on cross-site `fetch()`, so login appears to succeed but every
+    # subsequent /auth/me 401s. `cookie_samesite` resolves to "none" in prod
+    # via the property below; mandates Secure (which prod already has on).
+    # State-changing requests are still defended by the CSRF double-submit.
+    cookie_samesite_raw: Literal["lax", "strict", "none"] = "lax"
     # Encryption key for envelope-encrypting provider tokens at rest (Phase 2.8).
     # Must be a base64-encoded 32-byte key (Fernet format). Generate with
     # `python -m app.scripts.gen_encryption_key`. Empty string falls back to a
@@ -96,6 +101,15 @@ class Settings(BaseSettings):
         """Mark auth cookies Secure in production (TLS-only). Off in dev so
         cookies are accepted over http://localhost."""
         return self.is_production
+
+    @property
+    def cookie_samesite(self) -> Literal["lax", "strict", "none"]:
+        """Force SameSite=None in production so the SPA → API cookie auth
+        works across deploy hosts (Vercel ↔ Render). `Secure` is also on in
+        prod, satisfying the browser's `None`-requires-Secure rule."""
+        if self.is_production and self.cookie_samesite_raw == "lax":
+            return "none"
+        return self.cookie_samesite_raw
 
     @model_validator(mode="after")
     def _assert_no_defaults_in_production(self) -> Settings:
