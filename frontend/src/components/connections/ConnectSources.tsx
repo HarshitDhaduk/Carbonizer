@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { Building2, Check, Zap, type LucideIcon } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ConnectProvider, FootprintSummary } from "@/lib/types";
 import { ApiError, clientApi } from "@/lib/client-api";
+import { queryKeys } from "@/lib/queries";
 import { useAuthStore } from "@/store/auth-store";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
@@ -46,28 +48,35 @@ export function ConnectSources({
   className?: string;
 }) {
   const user = useAuthStore((s) => s.user);
-  const [busy, setBusy] = useState<ConnectProvider | null>(null);
+  const qc = useQueryClient();
   const [done, setDone] = useState<Partial<Record<ConnectProvider, number>>>(
     {},
   );
   const [error, setError] = useState<string | null>(null);
 
-  async function connect(provider: ConnectProvider) {
-    if (!user) return;
-    setBusy(provider);
-    setError(null);
-    try {
-      const res = await clientApi.linkSource(provider);
+  const linkMutation = useMutation({
+    mutationFn: (provider: ConnectProvider) => clientApi.linkSource(provider),
+    onSuccess: (res, provider) => {
       onSummary(res.summary);
       setDone((d) => ({ ...d, [provider]: res.recordsImported }));
-    } catch (e) {
+      // Recomputed footprint affects three places — invalidate the keyspace.
+      void qc.invalidateQueries({ queryKey: queryKeys.footprint.all });
+      void qc.invalidateQueries({ queryKey: queryKeys.connections() });
+      void qc.invalidateQueries({ queryKey: queryKeys.recommendations() });
+    },
+    onError: (e) => {
       setError(
         e instanceof ApiError ? e.message : "Couldn't connect — try again.",
       );
-    } finally {
-      setBusy(null);
-    }
+    },
+  });
+
+  function connect(provider: ConnectProvider) {
+    if (!user) return;
+    setError(null);
+    linkMutation.mutate(provider);
   }
+  const busy = linkMutation.isPending ? linkMutation.variables : null;
 
   return (
     <div className={cn("space-y-2", className)}>

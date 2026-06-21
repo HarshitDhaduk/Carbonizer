@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   Attribution,
   CategoryBreakdown,
   FootprintSummary,
 } from "@/lib/types";
-import { clientApi } from "@/lib/client-api";
-import { useAuthStore } from "@/store/auth-store";
+import { queries, queryKeys } from "@/lib/queries";
 import { CATEGORY_HEX, CATEGORY_LABEL } from "@/lib/tokens";
 import { formatCo2e } from "@/lib/format";
 import { AppPage } from "@/components/layout/AppPage";
@@ -24,48 +23,35 @@ export function InsightsClient() {
 }
 
 function InsightsContent() {
-  const user = useAuthStore((s) => s.user);
-  const [summary, setSummary] = useState<FootprintSummary | null>(null);
-  const [attr, setAttr] = useState<Attribution | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const qc = useQueryClient();
+  const summary = useQuery(queries.footprintSummary());
+  const attr = useQuery(queries.attribution());
 
-  useEffect(() => {
-    if (!user) return;
-    let active = true;
-    clientApi
-      .getFootprintSummary()
-      .then((s) => active && setSummary(s))
-      .catch(() => active && setError("Couldn't load your insights."));
-    clientApi
-      .getAttribution()
-      .then((a) => active && setAttr(a))
-      .catch(() => {
-        /* attribution is optional */
-      });
-    return () => {
-      active = false;
-    };
-  }, [user]);
+  if (summary.error)
+    return <p className="text-sm text-danger">Couldn&apos;t load your insights.</p>;
+  if (summary.isPending || !summary.data)
+    return <div className="skeleton h-64 rounded-card" />;
 
-  if (error) return <p className="text-sm text-danger">{error}</p>;
-  if (!summary) return <div className="skeleton h-64 rounded-card" />;
+  const data = summary.data;
+  const max = Math.max(...data.categories.map((c) => c.tco2e), 0.001);
+  const measured = data.categories.filter((c) => c.method !== "estimated").length;
+  const total = data.categories.length;
 
-  const max = Math.max(...summary.categories.map((c) => c.tco2e), 0.001);
-  const measured = summary.categories.filter(
-    (c) => c.method !== "estimated",
-  ).length;
-  const total = summary.categories.length;
+  function onConnected(next: FootprintSummary) {
+    qc.setQueryData(queryKeys.footprint.summary(), next);
+    void qc.invalidateQueries({ queryKey: queryKeys.footprint.all });
+  }
 
   return (
     <div className="space-y-4">
-      <FootprintPill summary={summary} />
+      <FootprintPill summary={data} />
 
       <section className="rounded-card border border-border-subtle bg-surface-1 p-4">
         <h2 className="mb-3 text-sm font-medium text-text-mid">
           Where it comes from
         </h2>
         <div className="space-y-3">
-          {[...summary.categories]
+          {[...data.categories]
             .sort((a, b) => b.tco2e - a.tco2e)
             .map((c) => (
               <CategoryBar key={c.category} c={c} max={max} />
@@ -86,11 +72,11 @@ function InsightsContent() {
           upgrade them.
         </p>
         <div className="mt-3">
-          <ConnectSources onSummary={setSummary} />
+          <ConnectSources onSummary={onConnected} />
         </div>
       </section>
 
-      {attr && <AttributionPanel attr={attr} />}
+      {attr.data && <AttributionPanel attr={attr.data} />}
     </div>
   );
 }

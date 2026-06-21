@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
-import type { Nudge } from "@/lib/types";
-import { clientApi } from "@/lib/client-api";
-import { useAuthStore } from "@/store/auth-store";
+import { useQuery } from "@tanstack/react-query";
+import { queries } from "@/lib/queries";
 import { AppPage } from "@/components/layout/AppPage";
 import { NudgeCard } from "@/components/dashboard/NudgeCard";
 import { ConnectSources } from "@/components/connections/ConnectSources";
@@ -18,24 +16,12 @@ export function ActClient() {
 }
 
 function ActContent() {
-  const user = useAuthStore((s) => s.user);
-  const [nudges, setNudges] = useState<Nudge[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const nudges = useQuery(queries.recommendations());
 
-  useEffect(() => {
-    if (!user) return;
-    let active = true;
-    clientApi
-      .getRecommendations()
-      .then((n) => active && setNudges(n))
-      .catch(() => active && setError("Couldn't load your actions."));
-    return () => {
-      active = false;
-    };
-  }, [user]);
-
-  if (error) return <p className="text-sm text-danger">{error}</p>;
-  if (!nudges) return <div className="skeleton h-64 rounded-card" />;
+  if (nudges.error)
+    return <p className="text-sm text-danger">Couldn&apos;t load your actions.</p>;
+  if (nudges.isPending || !nudges.data)
+    return <div className="skeleton h-64 rounded-card" />;
 
   return (
     <div className="space-y-4">
@@ -43,9 +29,9 @@ function ActContent() {
         A few high-impact changes, ranked by the carbon and money they save.
       </p>
 
-      {nudges.length > 0 ? (
+      {nudges.data.length > 0 ? (
         <div className="space-y-2.5">
-          {nudges.map((n) => (
+          {nudges.data.map((n) => (
             <NudgeCard key={n.id} nudge={n} />
           ))}
         </div>

@@ -1,72 +1,59 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import type { Benchmark, FootprintSummary, Nudge } from "@/lib/types";
-import { ApiError, clientApi } from "@/lib/client-api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { FootprintSummary } from "@/lib/types";
+import { ApiError } from "@/lib/client-api";
+import { queries, queryKeys } from "@/lib/queries";
 import { useAuthStore } from "@/store/auth-store";
 import { AppShell } from "@/components/layout/AppShell";
 import { AccountMenu } from "@/components/layout/AccountMenu";
 import { DashboardView } from "./DashboardView";
 import { ConnectSources } from "@/components/connections/ConnectSources";
 
-interface Data {
-  summary: FootprintSummary;
-  nudges: Nudge[];
-  benchmark: Benchmark;
-}
-
 /**
- * The authenticated, per-user dashboard. Auth state is held in HttpOnly cookies
- * (see store/auth-store.ts); this component just calls /auth/me on mount and
- * routes unauthenticated visitors back to onboarding.
+ * The authenticated, per-user dashboard. Auth state in HttpOnly cookies; data
+ * fetching via TanStack Query (Phase 4.2) so the three parallel fetches share
+ * cache, dedup across pages, and refetch on focus without bespoke useEffect
+ * plumbing.
  */
 export function DashboardClient() {
   const user = useAuthStore((s) => s.user);
   const hydrated = useAuthStore((s) => s.hydrated);
   const loadMe = useAuthStore((s) => s.loadMe);
   const router = useRouter();
-
-  const [data, setData] = useState<Data | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const qc = useQueryClient();
 
   useEffect(() => {
     void loadMe();
   }, [loadMe]);
 
   useEffect(() => {
-    if (!hydrated) return;
-    if (!user) {
-      router.replace("/onboarding");
-      return;
-    }
-    let active = true;
-    Promise.all([
-      clientApi.getFootprintSummary(),
-      clientApi.getRecommendations(),
-      clientApi.getBenchmark(),
-    ])
-      .then(([summary, nudges, benchmark]) => {
-        if (active) setData({ summary, nudges, benchmark });
-      })
-      .catch(async (e) => {
-        if (!active) return;
-        if (e instanceof ApiError && e.status === 401) {
-          await useAuthStore.getState().logout();
-          router.replace("/onboarding");
-          return;
-        }
-        setError(
-          e instanceof Error ? e.message : "Couldn't load your dashboard.",
-        );
-      });
-    return () => {
-      active = false;
-    };
+    if (hydrated && !user) router.replace("/onboarding");
   }, [hydrated, user, router]);
 
-  function onConnected(summary: FootprintSummary) {
-    setData((d) => (d ? { ...d, summary } : d));
+  const enabled = hydrated && !!user;
+  const summary = useQuery({ ...queries.footprintSummary(), enabled });
+  const nudges = useQuery({ ...queries.recommendations(), enabled });
+  const benchmark = useQuery({ ...queries.benchmark(), enabled });
+
+  // Surface a 401 from any of the three fetches by clearing local auth and
+  // bouncing to onboarding — the cookie has expired or been revoked.
+  const anyError = summary.error ?? nudges.error ?? benchmark.error;
+  useEffect(() => {
+    if (anyError instanceof ApiError && anyError.status === 401) {
+      void useAuthStore.getState().logout();
+      router.replace("/onboarding");
+    }
+  }, [anyError, router]);
+
+  function onConnected(next: FootprintSummary) {
+    // Optimistic write-through; the next focus-revalidate will reconcile
+    // against the server's recomputed snapshot.
+    qc.setQueryData(queryKeys.footprint.summary(), next);
+    void qc.invalidateQueries({ queryKey: queryKeys.footprint.all });
+    void qc.invalidateQueries({ queryKey: queryKeys.connections() });
   }
 
   if (!hydrated)
@@ -77,6 +64,14 @@ export function DashboardClient() {
     );
   if (!user) return null; // redirecting
 
+  const loading = summary.isPending || nudges.isPending || benchmark.isPending;
+  const errMsg =
+    !loading && anyError && !(anyError instanceof ApiError && anyError.status === 401)
+      ? anyError instanceof Error
+        ? anyError.message
+        : "Couldn't load your dashboard."
+      : null;
+
   return (
     <AppShell>
       <div className="mb-4 flex items-center justify-between">
@@ -84,18 +79,18 @@ export function DashboardClient() {
         <AccountMenu />
       </div>
 
-      {error ? (
+      {errMsg ? (
         <p role="alert" className="text-sm text-danger">
-          {error}
+          {errMsg}
         </p>
-      ) : !data ? (
+      ) : loading || !summary.data || !nudges.data || !benchmark.data ? (
         <DashboardSkeleton />
       ) : (
         <div className="space-y-4">
           <DashboardView
-            summary={data.summary}
-            topNudge={data.nudges[0]}
-            benchmark={data.benchmark}
+            summary={summary.data}
+            topNudge={nudges.data[0]}
+            benchmark={benchmark.data}
           />
           <section aria-label="Connect data sources" className="space-y-2">
             <h2 className="text-sm font-medium text-text-mid">

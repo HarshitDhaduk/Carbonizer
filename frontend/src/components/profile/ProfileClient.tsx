@@ -1,14 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { LogOut, ShieldCheck } from "lucide-react";
-import type {
-  AuthUser,
-  DataConnection,
-  OnboardingProfile,
-  Question,
-} from "@/lib/types";
-import { clientApi } from "@/lib/client-api";
+import { useQuery } from "@tanstack/react-query";
+import type { DataConnection, Question } from "@/lib/types";
+import { queries } from "@/lib/queries";
 import { useAuthStore } from "@/store/auth-store";
 import { visibleQuestions } from "@/lib/questionnaire";
 import { formatCo2e } from "@/lib/format";
@@ -17,13 +13,6 @@ import { ConnectSources } from "@/components/connections/ConnectSources";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { cn } from "@/lib/cn";
-
-interface Data {
-  user: AuthUser;
-  connections: DataConnection[];
-  profile: OnboardingProfile;
-  questions: Question[];
-}
 
 export function ProfileClient() {
   return (
@@ -34,41 +23,34 @@ export function ProfileClient() {
 }
 
 function ProfileContent() {
-  const authedUser = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const [data, setData] = useState<Data | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  useEffect(() => {
-    if (!authedUser) return;
-    let active = true;
-    Promise.all([
-      clientApi.getMe(),
-      clientApi.getConnections(),
-      clientApi.getOnboardingProfile(),
-      clientApi.getOnboardingQuestions(),
-    ])
-      .then(([me, connections, profile, q]) => {
-        if (active)
-          setData({ user: me, connections, profile, questions: q.questions });
-      })
-      .catch(() => active && setError("Couldn't load your profile."));
-    return () => {
-      active = false;
-    };
-  }, [authedUser]);
+  const me = useQuery(queries.me());
+  const connections = useQuery(queries.connections());
+  const profile = useQuery(queries.onboardingProfile());
+  const questionnaire = useQuery(queries.onboardingQuestions());
+
+  const isLoading =
+    me.isPending ||
+    connections.isPending ||
+    profile.isPending ||
+    questionnaire.isPending;
+  const error =
+    me.error ?? connections.error ?? profile.error ?? questionnaire.error;
 
   async function confirmLogout() {
     await logout();
     window.location.assign("/");
   }
 
-  if (error) return <p className="text-sm text-danger">{error}</p>;
-  if (!data) return <div className="skeleton h-64 rounded-card" />;
+  if (error) return <p className="text-sm text-danger">Couldn&apos;t load your profile.</p>;
+  if (isLoading || !me.data || !connections.data || !profile.data || !questionnaire.data)
+    return <div className="skeleton h-64 rounded-card" />;
 
-  const { user, connections, profile, questions } = data;
-  const answers = profile.answers ?? {};
+  const user = me.data;
+  const answers = profile.data.answers ?? {};
+  const questions = questionnaire.data.questions;
 
   return (
     <div className="space-y-4">
@@ -94,11 +76,8 @@ function ProfileContent() {
       <section className="rounded-card border border-border-subtle bg-surface-1 p-4">
         <h2 className="mb-3 text-sm font-medium text-text-mid">Your data</h2>
         <ul className="mb-3 space-y-2">
-          {connections.map((c) => (
-            <li
-              key={c.id}
-              className="flex items-center justify-between text-sm"
-            >
+          {connections.data.map((c) => (
+            <li key={c.id} className="flex items-center justify-between text-sm">
               <span className="text-text-hi">{c.label}</span>
               <ConnectionStatus status={c.status} lastSync={c.lastSync} />
             </li>
@@ -108,7 +87,7 @@ function ProfileContent() {
       </section>
 
       {/* onboarding answers */}
-      {profile.answers && (
+      {profile.data.answers && (
         <section className="rounded-card border border-border-subtle bg-surface-1 p-4">
           <h2 className="mb-3 text-sm font-medium text-text-mid">
             Your starting profile
@@ -143,11 +122,7 @@ function ProfileContent() {
       </section>
 
       {/* sign out */}
-      <Button
-        variant="danger"
-        className="w-full"
-        onClick={() => setConfirmOpen(true)}
-      >
+      <Button variant="danger" className="w-full" onClick={() => setConfirmOpen(true)}>
         <LogOut size={16} aria-hidden /> Log out
       </Button>
 
@@ -182,11 +157,7 @@ function ConnectionStatus({
     <span
       className={cn(
         "inline-flex items-center gap-1.5 text-xs",
-        connected
-          ? "text-brand-400"
-          : attention
-            ? "text-warning"
-            : "text-text-lo",
+        connected ? "text-brand-400" : attention ? "text-warning" : "text-text-lo",
       )}
     >
       <span
