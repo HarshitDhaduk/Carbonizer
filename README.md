@@ -1,293 +1,238 @@
 # Carbonizer
 
-A personal carbon-tracking web app that turns everyday spending, travel and energy
-use into a **Living Planet** — and tells you the few changes that shrink both your
-footprint and your bills.
+**Automated, honest, personal carbon tracking — with no manual logging.**
 
-Live UI (Next.js + Three.js) backed by a FastAPI service over PostgreSQL.
-Demo account: **`demo@carbonizer.app` / `demo12345`**.
+The first carbon tracker that gets *more accurate the longer you use it*, instead of less. Sign up in 60 seconds, never enter another kWh by hand, and watch your *Living Planet* react in real time to the decisions you actually make.
 
----
-
-## 1. Chosen vertical
-
-**Climate & sustainability — consumer carbon tracking.**
-
-The vertical sits at the intersection of:
-
-- **Consumer climate action** — household consumption accounts for a large share of
-  global GHG emissions, yet most regulation targets corporates and governments.
-- **Open Banking + IoT** — PSD2 transaction APIs and smart-meter feeds make it
-  possible to track real activity without asking the user to log anything by hand.
-- **Behavioral economics** — sustainable choices fail when accuracy demands effort
-  users won't give; defaults, social benchmarks and tangible feedback close that gap.
-- **ML for carbon accounting** — turning transactions and meter reads into
-  calibrated CO₂e requires classification, imputation, and causal attribution.
-
-The target user is an individual who wants to **understand and shrink their
-footprint with near-zero effort** — never type a kWh, never keep a food diary.
-
-See [`docs/DESIGN.md`](docs/DESIGN.md) for the full product brief and
-[`docs/DATA-STRATEGY.md`](docs/DATA-STRATEGY.md) for the data acquisition strategy.
-
----
-
-## 2. Approach and logic
-
-### The core reframe
-
-Most personal-carbon apps fail because they treat the footprint as **a number that
-needs more user input to refine**. Carbonizer treats it as a **calibrated posterior
-distribution**:
-
-- Each data source is a **noisy observation** that shrinks variance.
-- Each unmeasured category is a **wide prior** carrying explicit uncertainty.
-- Accuracy becomes a continuous gradient rather than a binary "have data / don't".
-
-This single move unifies the design — confidence becomes a first-class field on
-every category, the UI surfaces *how* a figure was derived, and bank-only users
-get a usable footprint instead of "please connect three more things."
-
-### Progressive Data Depth — the spine
-
-Every user starts with a **Day-0 estimate** from an 8-question onboarding form,
-then each connection visibly **upgrades** categories along the data-quality
-ladder:
-
-```
-estimated  →  inferred  →  spend  →  activity
-   0.30        0.55         0.80       0.95     ← confidence
-```
-
-The `method` badge isn't just a footnote — it's the engagement loop. *Improving
-accuracy is the game.*
-
-### Five research directions (the differentiating logic)
-
-Each is documented in detail in
-[`docs/DATA-STRATEGY.md` §9](docs/DATA-STRATEGY.md). They're implemented as MVPs
-that produce believable behaviour today, with the seam where a learned model
-plugs in clearly marked.
-
-| ID | Idea | Tension it resolves |
-|---|---|---|
-| **R0** | **Value-of-Information onboarding.** Order questions by how much answering each one shrinks footprint uncertainty (footprint-spread × visibility), highest-yield first. Show an "estimate precision" meter that climbs **far faster than step progress**. | Accuracy ↔ friction. |
-| **R1** | **Bank-as-hub imputation.** Most users only connect their bank. Treat it as a hub view: when a category has no direct transactions (e.g. energy), reconstruct it from the bank's spend signal and the onboarding prior, with explicit `confidence`, surfaced as **"Inferred"** until measured. | Coverage with one source. |
-| **R2** | **Price ↔ carbon decoupling.** Pure spend-based accounting wrongly penalises paying more for a sustainable product. We apply merchant-level intensity multipliers (eco vs conventional within the same MCC) and a per-category **price-elasticity** of carbon: `co2e = factor · ref · (gbp/ref)^e` (e=1 for fuel/energy, e<1 for goods). | Spend-based blindness. |
-| **R3** | **Honest reduction attribution.** A drop in energy emissions could be the user using less *or* the grid getting cleaner. We decompose ΔCO₂e exactly into **behavioral** (usage × old grid) and **structural** (new usage × grid change) terms, and credit the user only for the behavioral share. | Causal credit. |
-| **R4** | **Privacy-preserving + selection-bias-corrected benchmarking.** Inverse-propensity weighting lifts the eco-skewed connector mean toward the true population, then a Laplace **(ε)-DP** release protects individuals. k-anonymity suppresses small cohorts. | Privacy + fairness. |
-
----
-
-## 3. How the solution works
-
-### Architecture
-
-```
-        ┌───────────────────────────────────────────────────────────┐
-        │                  Next.js (App Router) + Three.js          │
-        │                                                           │
-        │  Landing  →  Onboarding (R0 VoI)  →  Day-0 reveal  →       │
-        │  Dashboard / Insights (R1 imputed, R3 attribution) /       │
-        │  Act / Community (R4 private benchmark) / Profile          │
-        └────────────────────────┬──────────────────────────────────┘
-                                 │  JSON over HTTPS  (JWT bearer)
-        ┌────────────────────────▼──────────────────────────────────┐
-        │             FastAPI · Pydantic v2 · SQLAlchemy 2.0         │
-        │                                                            │
-        │  auth · onboarding · connections · footprint · attribution │
-        │  recommendations · community · privacy · health            │
-        │                                                            │
-        │  services:                                                 │
-        │   estimator   (Day-0 + R0 VoI ordering)                    │
-        │   providers   (sandbox bank + meter behind a Protocol)     │
-        │   carbon      (MCC routing · merchant priors · elasticity) │
-        │   bank_sync   (idempotent upsert + recompute)              │
-        │   impute      (R1 bank-as-hub + confidence)                │
-        │   attribution (R3 grid vs usage decomposition)             │
-        │   benchmark_stats (R4 IPW + Laplace DP)                    │
-        │   dashboard   (per-user reads, k-anon)                     │
-        └────────────────────────┬──────────────────────────────────┘
-                                 │
-              ┌──────────────────▼─────────────────────┐
-              │  PostgreSQL (partitioned raw_*, ledger,│
-              │   snapshots, cohorts, recommendations) │
-              │   Alembic migrations · Argon2 hashes   │
-              └────────────────────────────────────────┘
-```
-
-### Key user flows
-
-1. **Onboarding** — 8 questions ordered by **value of information** (flights and
-   car first because they swing the footprint the most). The questionnaire is
-   server-defined so the renderer and estimator can't drift. Answers autosave on
-   each step (`PUT /onboarding/progress`), so a mid-flow close resumes at the
-   saved step. `POST /onboarding/estimate` computes the Day-0 footprint and
-   persists it as a `FootprintSnapshot` (`method=estimated`).
-
-2. **Connect a source** — sandbox providers ([`providers.py`](backend/app/services/providers.py))
-   fabricate realistic UK transactions or daily meter reads keyed by user UUID.
-   Real GoCardless / DCC adapters drop in behind the same `Protocol`. Ingestion
-   is **idempotent** (`on_conflict_do_nothing` on the natural key), data lands
-   in partitioned `raw_*` tables.
-
-3. **Recompute** — [`bank_sync.recompute_footprint`](backend/app/services/bank_sync.py)
-   merges signals with precedence **activity > spend > imputed > estimated**,
-   carrying the right `confidence` for each category. For energy it prefers
-   metered kWh × time-of-use grid intensity. For spend it applies the R2
-   merchant multiplier + price-elasticity. When the bank is connected but a
-   category has no direct transactions, the R1 imputation branch fires and the
-   category is flagged `imputed=true`.
-
-4. **Insights** — the dashboard reads the cached snapshot; Insights additionally
-   calls `GET /footprint/attribution` to fetch the R3 split. The bar chart shows
-   sorted category breakdowns with their method/imputed badges; "What's behind
-   your changes" credits the user only for the **behavioral** share.
-
-5. **Community benchmark** — k-anonymity drops cohort size below threshold,
-   R4 IPW lifts the eco-skewed mean toward the population, and a per-cohort
-   Laplace draw makes the released mean (ε)-differentially private.
-
-### Tech stack at a glance
-
-| Layer | Stack |
+| | |
 |---|---|
-| Frontend | Next.js 14 (App Router), TypeScript (strict), Tailwind, React Three Fiber, Zustand |
-| Backend | FastAPI, Pydantic v2, SQLAlchemy 2.0 (async), Alembic, Argon2 + PyJWT |
-| Database | PostgreSQL 16, partitioned high-volume tables, JSONB snapshot payloads |
-| Auth | OAuth2 password grant → short JWT, browser-side token persisted in localStorage |
-| Tests | pytest + httpx ASGI client (25 cases covering R0–R4 + auth/onboarding) |
+| 🌍 **Try it live** | [**carbonizer-lyart.vercel.app**](https://carbonizer-lyart.vercel.app/) |
+| 📡 **Live API** | [carbonizer-api.onrender.com/docs](https://carbonizer-api.onrender.com/docs) |
+| 📚 **Architecture deep-dive** | [`docs/DESIGN.md`](docs/DESIGN.md) |
+| 🚀 **Deploy your own** | [`docs/DEPLOY.md`](docs/DEPLOY.md) |
+| 🤝 **Contributing** | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| 📝 **Changelog** | [`CHANGELOG.md`](CHANGELOG.md) |
 
-### Running locally
+---
 
-Detailed steps in [`backend/README.md`](backend/README.md) and
-[`frontend/README.md`](frontend/README.md). TL;DR (Windows / PowerShell):
+## 1 · The problem (and why prior attempts have failed)
 
-```powershell
-# 1) one-shot DB provisioning
-cd backend
-psql -h 127.0.0.1 -U postgres -d postgres -f scripts/provision_db.sql
+Households are responsible for **~70%** of consumption-driven greenhouse-gas emissions, yet **personal climate tools have failed to make a dent.** The pattern is consistent across every existing app:
 
-# 2) backend
-python -m venv .venv ; .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-copy .env.example .env   # set USE_DB=true, DATABASE_URL=postgresql+asyncpg://carbonizer:carbonizer@127.0.0.1:5432/carbonizer
-alembic upgrade head
-python -m app.db.seed_db
-uvicorn app.main:app --reload    # http://localhost:8000
+> A user installs it on Sunday, logs a few meals on Monday, by Friday they've stopped, and by month-end they uninstall. The carbon footprint never gets accurate because the data was never automatic.
 
-# 3) frontend (in another shell)
-cd ..\frontend
-copy .env.local.example .env.local
-npm install
-npm run dev                      # http://localhost:3000
+We mapped the root failure modes:
+
+| Failure mode | What users feel | What it really is |
+|---|---|---|
+| **Manual logging tax** | "I have to type every receipt?" | The product asks the user to do the work that the platform should do. |
+| **Connect-three-things wall** | "I only have a bank account — give me a number anyway." | Coverage is brittle when any one data source is missing. |
+| **Spend-blind accounting** | "Why does buying expensive sustainable shoes increase my score?" | £-to-CO₂e mapping penalises paying more for greener choices. |
+| **Cleaner-grid plagiarism** | "I cut my electricity 15% but the app gives me 100% credit." | A drop on the dashboard isn't the same as a behaviour change. |
+| **Privacy theatre** | "Am I being compared with a cherry-picked benchmark? Is my data leaking?" | Aggregated comparisons leak both direction (selection bias) and individuals (no DP). |
+
+**Carbonizer is the design that closes each of these in turn.** None individually is novel — the contribution is treating them as a connected system and shipping them together.
+
+---
+
+## 2 · Who it's for
+
+The target user is a **climate-curious adult with a UK bank account who has tried a footprint app before and lost interest.** They:
+
+- Want **the truth about their footprint**, not a vanity number.
+- Will **connect one or two data sources** if it's two clicks each.
+- Will **never** log meals, weigh groceries, or type kWh values.
+- Care about **privacy** — they trust the app with bank metadata only if it stays on the platform.
+- Respond to **agency, not guilt** — "here's the one change that cuts the most" beats "you're above average."
+
+This guides every product decision below.
+
+---
+
+## 3 · How Carbonizer solves it — feature ↔ problem map
+
+Each R-track is a directly-addressable answer to one of the failure modes above. They compose into a single experience.
+
+| Problem | Solution | Implementation |
+|---|---|---|
+| Manual logging tax | **Connect-once ingestion** + sandbox/real provider abstraction behind a `Protocol` so adapters drop in without changing the pipeline | [`backend/app/services/providers.py`](backend/app/services/providers.py) |
+| Connect-three-things wall | **R1 — Bank-as-hub imputation.** Bank-only users get a real footprint for energy + food + transport with explicit `confidence` and an "Inferred" badge | [`backend/app/services/impute.py`](backend/app/services/impute.py) |
+| Spend-blind accounting | **R2 — Price-elasticity decoupling + merchant priors.** Carbon factor varies per merchant within an MCC; the £→CO₂e mapping respects price elasticity per category | [`backend/app/services/carbon.py`](backend/app/services/carbon.py) |
+| Cleaner-grid plagiarism | **R3 — Behavioural vs structural attribution.** ΔCO₂e is decomposed into "your usage" and "grid change"; the user is only credited for the behavioural share | [`backend/app/services/attribution.py`](backend/app/services/attribution.py) |
+| Privacy theatre | **R4 — IPW + Laplace DP + k-anonymity.** Selection-bias-corrected mean, (ε)-DP release, cohort suppression below k=50 | [`backend/app/services/benchmark_stats.py`](backend/app/services/benchmark_stats.py) |
+| Onboarding-fatigue tax | **R0 — Value-of-Information question ordering.** Highest-variance question first; a precision meter climbs *faster than step progress* so users see accuracy as the reward | [`backend/app/services/voi.py`](backend/app/services/voi.py) |
+| "I have no idea how accurate this is" | **Progressive Data Depth.** Every category carries a method badge (estimated → inferred → spend → activity) + a 0–1 confidence number — accuracy becomes a visible engagement loop | [`backend/app/services/bank_sync.py:_merge_categories`](backend/app/services/bank_sync.py) |
+
+---
+
+## 4 · The user experience — what a real visitor sees
+
+1. **Landing** — the **3D Living Planet** at the centre is health-mapped to the user's footprint *before* sign-up. Three modes: drag to orbit, tap to plant, [Plant a tree] button + Space/Enter for keyboard.
+2. **Sign in / register** in ~10 seconds — cookies handle the session, no password manager dance.
+3. **Onboarding** — **8 questions ordered by value-of-information**, dependency-aware. Pick "No car" and the next 1–2 questions get skipped. A live **precision meter** shows accuracy climbing as you answer — the reward is *certainty about your own number*.
+4. **Day-0 reveal** — your annual tonnes, your biome state, and the top-three categories. Every figure carries a method badge — there's nothing implicit.
+5. **Connect a source** (sandbox today) → the corresponding category's badge flips from *Estimated* to *Spend-based* or *Activity-based*. The planet's health re-renders in real time.
+6. **Insights** — bar chart sorted by impact, the R3 "behaviour vs grid" attribution panel, and the data-quality counter ("3 of 4 categories measured").
+7. **Act** — top three high-impact nudges, ranked by `(carbon saved × money saved)`. One-tap actions where they exist.
+8. **Community** — benchmark vs households like yours, k-anonymised at k=50, DP-noised on read.
+9. **Profile** — the user's own data, a one-click GDPR/DPDP export, and the 48-hour-grace erase flow.
+
+**Try it now**: [carbonizer-lyart.vercel.app](https://carbonizer-lyart.vercel.app/) → register with any email + a 12-character password.
+
+---
+
+## 5 · What we shipped — concrete artifacts
+
+| Artifact | Count / state |
+|---|---|
+| Backend tests | **76 unit + 8 DB-mode integration (testcontainers Postgres 16)** |
+| Frontend unit tests | **33 vitest specs** with coverage thresholds enforced in CI |
+| End-to-end tests | **14 Playwright specs** covering auth flow, a11y (axe-core), questionnaire, keyboard nav, connect-source |
+| Property-based tests | **13 Hypothesis properties** (estimator + carbon/impute services) |
+| Mutation tests | **mutmut** weekly on the pure-math services |
+| Security | **OWASP Top 10 self-review** ✓ — see [`docs/SECURITY-REVIEW.md`](docs/SECURITY-REVIEW.md). HttpOnly cookies + CSRF, Argon2id, rate limits, hard-fail on default secrets, envelope encryption for provider tokens. |
+| Accessibility | **WCAG 2.2 AA verified** — see [`docs/A11Y-REPORT.md`](docs/A11Y-REPORT.md). NVDA + VoiceOver + TalkBack walkthroughs documented for all 4 critical flows. |
+| Architecture decisions | **5 ADRs** in [`docs/adr/`](docs/adr/) |
+| CI gates | ruff + mypy --strict + ruff `C901` + pytest (≥ 70%) + vitest (coverage thresholds) + Playwright + Lighthouse + pip-audit + npm audit |
+| Live deploy | Frontend on **Vercel**, API on **Render** (Dockerised, multi-stage, non-root), Postgres on **Neon** |
+| Production-ready docs | [`docs/DEPLOY.md`](docs/DEPLOY.md), [`docs/RUNBOOK.md`](docs/RUNBOOK.md), [`docs/PRODUCTION-CHECKLIST.md`](docs/PRODUCTION-CHECKLIST.md) |
+
+---
+
+## 6 · Architecture at a glance
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                  Next.js 16 (App Router) + Three.js            │
+│                                                                │
+│  Landing → AuthGate → Onboarding (R0 VoI) → Day-0 reveal →     │
+│  Dashboard / Insights (R1 imputed, R3 attribution) /           │
+│  Act / Community (R4 private benchmark) / Profile              │
+└──────────────────┬─────────────────────────────────────────────┘
+                   │  Same-origin JSON over HTTPS
+                   │  HttpOnly cookies + CSRF double-submit
+┌──────────────────▼─────────────────────────────────────────────┐
+│              FastAPI · Pydantic v2 · SQLAlchemy 2.0            │
+│                                                                │
+│  auth · onboarding · connections · footprint · attribution     │
+│  recommendations · community · privacy · health                │
+│                                                                │
+│  services:                                                     │
+│   questionnaire (R0 data + helpers)                            │
+│   voi           (R0 scoring + ordering)                        │
+│   estimator     (Day-0 math)                                   │
+│   providers     (sandbox bank + meter behind a Protocol)       │
+│   carbon        (MCC routing · merchant priors · elasticity)   │
+│   bank_sync     (idempotent upsert + recompute)                │
+│   impute        (R1 bank-as-hub + confidence)                  │
+│   attribution   (R3 grid vs usage decomposition)               │
+│   benchmark_stats (R4 IPW + Laplace DP)                        │
+│   dsr / dsr_export (GDPR Art. 15 / 17 + DPDP §11 / §12)        │
+│   audit         (best-effort append-only log)                  │
+└──────────────────┬─────────────────────────────────────────────┘
+                   │
+       ┌───────────▼───────────────────┐
+       │  PostgreSQL 16 (Neon)         │
+       │   Partitioned raw_*, ledger,  │
+       │   snapshots, cohorts, audit   │
+       │   Alembic · Argon2id · Fernet │
+       └───────────────────────────────┘
 ```
 
 ---
 
-## 4. Assumptions made
+## 7 · Scope decisions (and where to plug in the real thing)
 
-We were deliberate about what's **real engineering** vs. **MVP standing in for
-production data sources** so a hackathon judge / reviewer can see the difference.
+We were deliberate about what's **real engineering** vs. **MVP standing in for production data sources**. Each "stand-in" has a clean seam where the production version drops in.
 
-### Architecture assumptions
+| MVP stand-in | Production version | Seam |
+|---|---|---|
+| `SandboxBankProvider` produces deterministic synthetic transactions | GoCardless / TrueLayer / Plaid adapter | `services.providers.BankProvider` Protocol |
+| `SandboxMeterProvider` produces synthetic half-hourly reads | Octopus Energy OAuth / DCC / n3rgy | `services.providers.MeterProvider` Protocol |
+| Hand-curated 15-merchant prior table (R2) | Learned per-merchant intensities + name-embedding model | `_MERCHANT_MULTIPLIER` in `services.carbon` |
+| Per-category price elasticities picked from economics | Estimated from population data | `_CATEGORY_PRICE_ELASTICITY` in `services.carbon` |
+| R1 blend weights `prior × (0.6 + 0.4 × signal)` hand-set | Learn `P(energy, transport \| spend, demographics)` on the multi-source anchor set | `impute.impute_from_bank()` call signature unchanged |
+| R0 spread-based VoI | Expected information gain on the R1 posterior, re-ranked adaptively | `services.voi._question_spread()` |
+| R4 IPW uses a constant +10% selection skew | Per-cohort propensity scores via logistic regression on connector vs population features | `benchmark_stats.ipw_population_mean()` |
+| `ENCRYPTION_KEY` rotation via env-var swap | KMS-backed envelope with automatic re-encryption on read | `core.crypto` Fernet wrapper |
+| GDPR `/privacy/erase` sweep called manually in dev | Render Cron Job (production) or any external cron | `dsr.sweep_overdue_erasures()` |
+| GoCardless / TrueLayer not wired (live OAuth registration is paid) | Real adapter | Protocol-compatible class |
+| Mobile telematics not built (background GPS needs native code) | Rust + UniFFI core | Documented in `docs/DESIGN.md §9` |
+| NLP transaction classifier not yet trained | Fine-tuned RoBERTa (~87% F1 cited in docs) | `services.carbon.categorize()` falls back to MCC routing today |
 
-- **Sandbox providers for ingestion.** Open Banking and smart-meter integrations
-  cost money and require live OAuth registrations. We built `SandboxBankProvider`
-  and `SandboxMeterProvider` behind a `Protocol` so a real GoCardless / TrueLayer /
-  Octopus / DCC adapter implementing the same `fetch_*` method **drops in with no
-  pipeline changes**. The downstream (idempotency, normalization, recompute) is
-  production-shaped.
-- **Sandbox data is deterministic per user.** Seeded by user UUID so the same
-  user keeps the same fake history across runs, but two different users get
-  different histories — verifying the per-user wiring without an external service.
-- **No mobile app.** Background telematics needs native code (CoreMotion /
-  Activity Recognition). The DESIGN.md spec describes the Rust+UniFFI core; this
-  build is web-only by design.
+The point isn't to wave away the gaps — it's to show that **the production path doesn't change the architecture**.
 
-### Modeling assumptions (and the seams where ML replaces heuristics)
+---
 
-- **R0 — VoI ordering** uses the *footprint spread* a question induces (varying
-  it with all others at defaults). The proper version would use **expected
-  information gain on R1's posterior** and re-rank adaptively as the user
-  answers. The seam: a single `_question_spread` function.
-- **R1 — bank-as-hub blend weights** (`prior × (0.6 + 0.4 × signal)`) are
-  hand-set, not learned. The proper version learns
-  `P(energy, transport | spend, demographics)` on the anchor set of users who
-  connect all three sources. The seam: `impute.impute_from_bank()` — the call
-  signature stays.
-- **R2 — merchant priors** are a hand-curated table (~15 brands). The proper
-  version learns per-merchant intensities from population spend distributions
-  + a name-embedding model. Same for the per-category **price elasticities** —
-  picked from plausible economics, not estimated. The seams:
-  `_MERCHANT_MULTIPLIER` and `_CATEGORY_PRICE_ELASTICITY`.
-- **R3 — attribution** does the exact index decomposition for **energy only**
-  (electricity decomposes into grid × usage; gas is wholly behavioral). It
-  doesn't yet decompose weather, price elasticity, or per-nudge causal effects
-  (the doc calls for stepped-wedge rollouts + synthetic controls — explicitly
-  future work).
-- **R4 — IPW lift** uses a constant **+10% selection skew** as a stand-in for
-  per-cohort propensity scores. The DP mechanism (Laplace, ε=1, sensitivity=0.1)
-  is real and deterministic per cohort, so repeated reads don't re-leak. Real
-  rollout would use **secure aggregation** for cohort statistics and learned
-  propensities.
+## 8 · Running locally
 
-### Numerical assumptions
+Full setup in [`CONTRIBUTING.md`](CONTRIBUTING.md). Short version:
 
-- **Carbon factors** are DEFRA / EEA-style order-of-magnitude figures
-  (gCO₂/km for transport modes, kgCO₂e/£ EIO-LCA intensities, kgCO₂e/kWh for
-  gas, live grid intensity for electricity). They're intentionally rough so the
-  ladder activity → spend → imputed → estimated is meaningful; the proper
-  factor set lives in databases like Climatiq / EXIOBASE 3.11 / ecoinvent.
-- **Currency** assumed GBP throughout the MVP, region = "GB". International
-  expansion (EU then US) is a roadmap item — see DATA-STRATEGY.md §8.
-- **Recompute window** is 12 weeks (~84 days), annualized for the headline
-  total. Range parameter accepts `12w | 6m | 1y` but only `12w` has a snapshot
-  cache today.
+```bash
+# Backend (seed mode, no Postgres needed)
+cd backend
+python -m venv .venv && source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+pip install -e ".[dev]"
+uvicorn app.main:app --reload                       # http://127.0.0.1:8000
 
-### Auth & data assumptions
+# Frontend (in another terminal)
+cd frontend
+npm install --no-audit --no-fund --legacy-peer-deps
+npm run dev                                         # http://localhost:3000
+```
 
-- **Argon2id** for password hashes (real, not a stand-in).
-- **JWT access tokens** held in `localStorage` for the MVP. The backend already
-  issues refresh tokens as `HttpOnly` cookies; the frontend will move to them
-  before any real users.
-- **k-anonymity threshold k=50** for cohort size suppression (hardcoded).
-- **No real PII connectors.** All "connect" buttons run the sandbox provider;
-  nothing leaves your machine.
+Want the **DB-mode** path? Flip `USE_DB=true` in `backend/.env`, set `DATABASE_URL` to a Postgres URL (Neon free tier works), run `alembic upgrade head`. The dev rewrite makes the frontend call the local backend at `/api/v1` — same-origin like in production.
 
-### What's intentionally out of scope for this build
+---
 
-- Real Open Banking aggregator (GoCardless / TrueLayer / Plaid).
-- Real smart-meter integration (Octopus OAuth / DCC / n3rgy).
-- Mobile telematics SDK.
-- NLP transaction classifier (the docs cite a fine-tuned RoBERTa at ~87% F1 —
-  not yet in the build).
-- Web3 / Personal Carbon Trading (called out in DESIGN.md §9 as optional /
-  future-phase).
+## 9 · Where this goes next
+
+The MVP closes the loop for an individual user. The product roadmap (in [`docs/DESIGN.md §9`](docs/DESIGN.md)) is the journey from "your number" to "your collective effect":
+
+- **Real Open Banking** (GoCardless / TrueLayer) — moves coverage from sandbox-deterministic to user-data-driven.
+- **Smart-meter OAuth** (Octopus / DCC) — flips energy from spend/imputed to activity for everyone.
+- **Mobile telematics** (Rust + UniFFI) — flips transport from spend to activity for everyone.
+- **Personal Carbon Trading marketplace** — a stretch goal where verified reductions become tradeable.
+- **Employer / municipality dashboards** — Carbonizer for a company / town, with cohort-level differential privacy.
 
 ---
 
 ## Repository map
 
 ```
-docs/                 design specs (read these for depth)
-  DESIGN.md           product & architecture
-  UI-UX-DESIGN.md     visual language and screens
-  DB-SCHEMA.md        database design
-  API-DESIGN.md       REST contract
-  DATA-STRATEGY.md    real-data strategy + R0–R4 details
+docs/                 design specs + deploy + runbook + ADRs
+  DESIGN.md           product & architecture deep-dive
+  UI-UX-DESIGN.md     visual language + screens
+  DB-SCHEMA.md        database design + partitioning strategy
+  API-DESIGN.md       REST contract + auth model
+  DATA-STRATEGY.md    real-data + R0–R4 detailed rationale
+  SECURITY-REVIEW.md  OWASP top-10 self-review
+  A11Y-REPORT.md      WCAG 2.2 AA walkthroughs
+  DEPLOY.md           Neon + Render + Vercel deploy guide
+  RUNBOOK.md          top-5 incident playbook
+  PRODUCTION-CHECKLIST.md  pre-launch SRE sign-off
+  adr/                load-bearing architecture decisions
 
-backend/              FastAPI service
+backend/              FastAPI service (Dockerised, multi-stage)
   app/                core / db / models / schemas / services / api
   alembic/            migrations
-  tests/              pytest suite
-  scripts/            provisioning SQL
-  README.md           detailed run guide
+  tests/              pytest + Hypothesis + testcontainers
+  Dockerfile          multi-stage Python 3.11-slim, non-root, HEALTHCHECK
+  render.yaml         deploy spec (root-level)
 
-frontend/             Next.js + Three.js app
+frontend/             Next.js 16 + React 19 + React Three Fiber
   src/app/            routes (App Router)
-  src/components/     biome / landing / onboarding / dashboard / insights / act / profile
-  src/lib/            api clients, types, hooks, design tokens
+  src/components/     biome / landing / onboarding / dashboard / insights / act / profile / providers
+  src/lib/            api clients, types, queries, hooks, design tokens
   src/store/          Zustand stores
-  README.md           detailed run guide
+  e2e/                Playwright specs (auth, a11y, questionnaire, keyboard-nav, connect-source)
+  vercel.json         Vercel rewrites + build config
+
+.github/workflows/
+  ci.yml              backend + frontend + e2e + Lighthouse on every PR
+  mutmut.yml          weekly mutation testing
+  dep-audit.yml       weekly all-severity dep scan
+
+CHANGELOG.md          Keep-a-Changelog
+CONTRIBUTING.md       new-contributor green-CI-in-30-minutes guide
 ```
