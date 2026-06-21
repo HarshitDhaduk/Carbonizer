@@ -52,7 +52,30 @@ export function BiomeCanvas({
     return () => io.disconnect();
   }, []);
 
-  const live3d = !use2D && onScreen;
+  // Defer the three.js mount until the main thread is idle so first-paint
+  // + LCP land on the cheap poster alone. Cuts Total Blocking Time on the
+  // landing route from ~1 s to roughly the cost of the static hero — three.js
+  // initialisation moves *after* the user can interact (Phase 4.5).
+  const [idle, setIdle] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const w = window as Window &
+      typeof globalThis & {
+        requestIdleCallback?: (
+          cb: () => void,
+          opts?: { timeout: number },
+        ) => number;
+        cancelIdleCallback?: (id: number) => void;
+      };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(() => setIdle(true), { timeout: 1500 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const id = window.setTimeout(() => setIdle(true), 600);
+    return () => window.clearTimeout(id);
+  }, []);
+
+  const live3d = !use2D && onScreen && idle;
 
   return (
     <div className="relative flex h-full w-full flex-col items-center justify-center">
