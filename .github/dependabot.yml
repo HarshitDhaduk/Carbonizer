@@ -16,6 +16,10 @@ updates:
       # Pydantic core + settings move together
       pydantic-stack:
         patterns: ["pydantic*"]
+      # pytest plugins pin pytest's major version — must bump as a group
+      # (pytest 9 needs pytest-asyncio ≥ 1.0, pytest-cov ≥ 7.0, etc.)
+      pytest-stack:
+        patterns: ["pytest", "pytest-*"]
 
   - package-ecosystem: npm
     directory: /frontend
