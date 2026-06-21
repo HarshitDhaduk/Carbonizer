@@ -6,6 +6,16 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     labels: ["dependencies", "backend"]
+    groups:
+      # SQLAlchemy + alembic + asyncpg move together
+      sqlalchemy-stack:
+        patterns: ["sqlalchemy*", "alembic", "asyncpg"]
+      # FastAPI + uvicorn + python-multipart move together
+      fastapi-stack:
+        patterns: ["fastapi", "uvicorn*", "python-multipart"]
+      # Pydantic core + settings move together
+      pydantic-stack:
+        patterns: ["pydantic*"]
 
   - package-ecosystem: npm
     directory: /frontend
@@ -13,6 +23,20 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     labels: ["dependencies", "frontend"]
+    groups:
+      # @react-three/fiber and @react-three/drei have linked peer-dep
+      # versions — they must be bumped together or both stay put.
+      react-three:
+        patterns: ["@react-three/*", "three", "@types/three", "three-mesh-bvh"]
+      # Next.js + eslint-config-next move as a unit.
+      nextjs:
+        patterns: ["next", "eslint-config-next"]
+      # React types + react itself.
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      # Tailwind + plugins + autoprefixer + postcss.
+      tailwind:
+        patterns: ["tailwindcss*", "@tailwindcss/*", "autoprefixer", "postcss"]
 
   - package-ecosystem: github-actions
     directory: /
