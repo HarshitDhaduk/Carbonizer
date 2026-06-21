@@ -23,6 +23,28 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     labels: ["dependencies", "frontend"]
+    # Major bumps for framework-level packages require a planned migration
+    # (e.g. drei@10 needs React 19). Let Dependabot ship safe minor/patch
+    # updates only; we'll schedule the majors ourselves.
+    ignore:
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@react-three/fiber"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@react-three/drei"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint-config-next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "tailwindcss"
+        update-types: ["version-update:semver-major"]
     groups:
       # @react-three/fiber and @react-three/drei have linked peer-dep
       # versions — they must be bumped together or both stay put.
