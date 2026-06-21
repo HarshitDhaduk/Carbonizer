@@ -5,8 +5,8 @@
 #   2. https://dashboard.render.com → New → Blueprint → connect repo.
 #   3. Render reads this file, provisions the service, and starts deploying.
 #   4. The first request after 15 min idle is slow (~30s cold start) — that's
-#      the free tier.
-#   5. Set DATABASE_URL to your Neon connection string (see docs/DEPLOYMENT.md).
+#      the free tier; bump to "starter" ($7/mo) to keep the instance warm.
+#   5. Set DATABASE_URL to your Neon connection string (see docs/DEPLOY.md).
 #
 # Frontend is deployed separately on Vercel.
 
@@ -17,24 +17,39 @@ services:
     rootDir: backend
     plan: free
     region: oregon
-    healthCheckPath: /api/v1/healthz
+    # /readyz pings the DB; Render drains traffic from this instance when the
+    # DB blips without restarting the process. /healthz is the cheap liveness
+    # the HEALTHCHECK in the Dockerfile uses internally.
+    healthCheckPath: /api/v1/readyz
     autoDeploy: true
     envVars:
       - key: ENVIRONMENT
         value: production
       - key: USE_DB
         value: "true"
-      # DATABASE_URL — set in Render dashboard from your Neon project
-      # (postgresql+asyncpg://... — note the +asyncpg driver suffix).
+      # JSON ndjson logs (the default in the runtime stage of the Dockerfile;
+      # set explicitly here so a future image change can't accidentally flip it).
+      - key: LOG_FORMAT
+        value: json
+      # DATABASE_URL — set in Render dashboard from your Neon project.
+      # Format: postgresql+asyncpg://USER:PASS@HOST/DB?sslmode=require
+      # (note the +asyncpg driver suffix; Neon ships +psycopg2 — convert).
       - key: DATABASE_URL
         sync: false
       # SECRET_KEY — generate with `openssl rand -hex 32`, set in dashboard.
       - key: SECRET_KEY
         sync: false
+      # ENCRYPTION_KEY — Fernet key for envelope-encrypting provider tokens
+      # (Phase 2.8). Generate with:
+      #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+      - key: ENCRYPTION_KEY
+        sync: false
       # CORS_ORIGINS — comma-separated. Add your Vercel URL after first deploy:
-      # e.g. https://carbonizer.vercel.app
+      # e.g. https://carbonizer.vercel.app,https://www.carbonizer.app
       - key: CORS_ORIGINS
         sync: false
+      # Demo creds — also gated by docs/SECURITY-REVIEW; the prod deploy
+      # rejects the default password at startup.
       - key: DEMO_EMAIL
         value: demo@carbonizer.app
       - key: DEMO_PASSWORD
