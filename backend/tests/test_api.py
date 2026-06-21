@@ -488,6 +488,73 @@ async def test_gzip_compresses_large_responses(
     assert resp.headers.get("content-encoding") == "gzip"
 
 
+# --- Phase 7: production readiness ------------------------------------------
+
+
+async def test_request_id_minted_on_response_when_absent(
+    client: AsyncClient,
+) -> None:
+    """No inbound X-Request-Id → middleware mints one and echoes it back."""
+    resp = await client.get("/api/v1/healthz")
+    rid = resp.headers.get("x-request-id")
+    assert rid is not None
+    # uuid4 hex is 32 chars; we accept anything reasonable to avoid pinning shape.
+    assert len(rid) >= 16
+
+
+async def test_request_id_preserved_when_caller_sets_it(
+    client: AsyncClient,
+) -> None:
+    """Inbound X-Request-Id flows through to the response verbatim."""
+    resp = await client.get(
+        "/api/v1/healthz", headers={"X-Request-Id": "deploy-test-12345"}
+    )
+    assert resp.headers.get("x-request-id") == "deploy-test-12345"
+
+
+async def test_readyz_returns_ok_in_seed_mode(
+    client: AsyncClient, api_prefix: str
+) -> None:
+    """Readyz returns 200 with a healthy status in seed mode (DB skipped) or
+    DB-mode where the test container is up. 503 only if a real DB is
+    configured but unreachable."""
+    resp = await client.get(f"{api_prefix}/readyz")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert body["database"] in (True, "skipped")
+
+
+def test_json_log_formatter_carries_request_id() -> None:
+    """The structured formatter weaves the contextvar into every record."""
+    import logging
+
+    from app.core.logging import _JsonFormatter, request_id_var
+
+    fmt = _JsonFormatter()
+    token = request_id_var.set("test-rid-abcdef")
+    try:
+        record = logging.LogRecord(
+            name="carbonizer.test",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="hello %s",
+            args=("world",),
+            exc_info=None,
+        )
+        payload = fmt.format(record)
+    finally:
+        request_id_var.reset(token)
+    import json
+
+    parsed = json.loads(payload)
+    assert parsed["level"] == "INFO"
+    assert parsed["msg"] == "hello world"
+    assert parsed["request_id"] == "test-rid-abcdef"
+    assert parsed["name"] == "carbonizer.test"
+
+
 async def test_audit_record_seed_mode_is_noop() -> None:
     """In seed mode (db=None), audit.record() must not raise."""
     from app.services import audit

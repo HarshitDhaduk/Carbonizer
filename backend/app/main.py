@@ -24,6 +24,7 @@ from app.core.config import settings
 from app.core.csrf import CSRFMiddleware
 from app.core.logging import configure_logging
 from app.core.rate_limit import limiter
+from app.core.request_id import RequestIdMiddleware
 from app.core.security_headers import SecurityHeadersMiddleware
 from app.db.session import dispose_engine
 
@@ -107,6 +108,9 @@ app.add_middleware(
 )
 
 app.add_middleware(SecurityHeadersMiddleware)
+# Request-id middleware sits outside everything so every log line — including
+# the slowapi 429 handler and the CSRF rejection — carries the same id.
+app.add_middleware(RequestIdMiddleware)
 # CSRF middleware after CORS so preflight OPTIONS still gets a CORS-correct
 # response, before SlowAPI so a rejected CSRF attempt isn't counted against
 # the rate budget of a legitimate caller.
