@@ -25,4 +25,7 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
+# next-env.d.ts is intentionally tracked — it has stable, hand-known
+# contents (4 lines of /// reference directives), and committing it
+# means `tsc --noEmit` works on a cold CI runner before `next lint`
+# or `next build` has had a chance to generate it.
