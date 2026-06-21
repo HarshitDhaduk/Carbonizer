@@ -832,7 +832,7 @@ def test_connection_set_access_token_encrypts() -> None:
 def test_dsr_export_omits_access_tokens() -> None:
     """The export bundle must not include the encrypted-or-plaintext provider
     access token, even though the column survives the dump."""
-    from app.services.dsr import _dump
+    from app.services.dsr_export import _dump
 
     class _FakeConn:
         class __table__:
