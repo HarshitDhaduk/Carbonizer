@@ -46,6 +46,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 DEMO_USER_ID = "usr_demo"
 
 
+_SECONDS_PER_MINUTE = 60
+_SECONDS_PER_DAY = 24 * 60 * _SECONDS_PER_MINUTE
+
+
 def _token_response(subject: str) -> TokenResponse:
     """Body returned alongside the cookie set.
 
@@ -55,8 +59,32 @@ def _token_response(subject: str) -> TokenResponse:
     """
     return TokenResponse(
         access_token=create_access_token(subject),
-        expires_in=settings.access_token_ttl_minutes * 60,
+        expires_in=settings.access_token_ttl_minutes * _SECONDS_PER_MINUTE,
     )
+
+
+async def _audit_and_commit(
+    db: AsyncSession,
+    request: Request,
+    action: str,
+    actor: str | None,
+) -> None:
+    """Record an audit-log row keyed on the user, then commit the transaction."""
+    await audit.record(
+        db,
+        action=action,
+        actor=actor,
+        resource_type="user",
+        resource_id=actor,
+        request=request,
+    )
+    await db.commit()
+
+
+def _issue_session(response: Response, subject: str) -> TokenResponse:
+    """Set the auth-cookie trio and return the back-compat token body."""
+    set_auth_cookies(response, subject)
+    return _token_response(subject)
 
 
 @router.post(
@@ -86,32 +114,34 @@ async def register(
             detail="Registration requires the database (set USE_DB=true).",
         )
     email = body.email.strip().lower()
-    existing = await db.execute(select(User.id).where(User.email == email))
-    if existing.scalar_one_or_none() is not None:
+    if await _email_exists(db, email):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="An account with that email already exists.",
         )
+    user = await _create_user(db, email, body.password, body.region)
+    await _audit_and_commit(db, request, "auth.register", str(user.id))
+    await db.refresh(user)
+    return _issue_session(response, str(user.id))
+
+
+async def _email_exists(db: AsyncSession, email: str) -> bool:
+    """True when a non-deleted user already owns ``email``."""
+    res = await db.execute(select(User.id).where(User.email == email))
+    return res.scalar_one_or_none() is not None
+
+
+async def _create_user(
+    db: AsyncSession, email: str, password: str, region: str
+) -> User:
+    """Insert the user + their default PrivacySettings row."""
     user = User(
-        email=email,
-        password_hash=hash_password(body.password),
-        region=body.region,
+        email=email, password_hash=hash_password(password), region=region
     )
     user.privacy = PrivacySettings()
     db.add(user)
     await db.flush()
-    await audit.record(
-        db,
-        action="auth.register",
-        actor=str(user.id),
-        resource_type="user",
-        resource_id=str(user.id),
-        request=request,
-    )
-    await db.commit()
-    await db.refresh(user)
-    set_auth_cookies(response, str(user.id))
-    return _token_response(str(user.id))
+    return user
 
 
 @router.post(
@@ -134,41 +164,36 @@ async def login(
 ) -> TokenResponse:
     """Verify password (Argon2id), issue session cookies, return access JWT."""
     email = form.username.strip().lower()
-
-    # seed mode — validate against demo credentials
     if db is None:
-        if email != settings.demo_email or form.password != settings.demo_password:
-            raise _bad_credentials()
-        set_auth_cookies(response, DEMO_USER_ID)
-        return _token_response(DEMO_USER_ID)
+        return _login_seed_mode(response, email, form.password)
+    return await _login_db_mode(db, request, response, email, form.password)
 
-    # DB mode — verify the Argon2 hash
+
+def _login_seed_mode(response: Response, email: str, password: str) -> TokenResponse:
+    """Seed-mode auth — only the demo credentials work."""
+    if email != settings.demo_email or password != settings.demo_password:
+        raise _bad_credentials()
+    return _issue_session(response, DEMO_USER_ID)
+
+
+async def _login_db_mode(
+    db: AsyncSession,
+    request: Request,
+    response: Response,
+    email: str,
+    password: str,
+) -> TokenResponse:
+    """DB-mode auth — verify the Argon2 hash, audit both branches."""
     res = await db.execute(
         select(User).where(User.email == email, User.deleted_at.is_(None))
     )
     user = res.scalar_one_or_none()
-    if user is None or not verify_password(form.password, user.password_hash):
-        await audit.record(
-            db,
-            action="auth.login.failed",
-            actor=str(user.id) if user else None,
-            resource_type="user",
-            resource_id=str(user.id) if user else None,
-            request=request,
-        )
-        await db.commit()
+    if user is None or not verify_password(password, user.password_hash):
+        actor = str(user.id) if user else None
+        await _audit_and_commit(db, request, "auth.login.failed", actor)
         raise _bad_credentials()
-    await audit.record(
-        db,
-        action="auth.login.success",
-        actor=str(user.id),
-        resource_type="user",
-        resource_id=str(user.id),
-        request=request,
-    )
-    await db.commit()
-    set_auth_cookies(response, str(user.id))
-    return _token_response(str(user.id))
+    await _audit_and_commit(db, request, "auth.login.success", str(user.id))
+    return _issue_session(response, str(user.id))
 
 
 @router.post(
@@ -251,7 +276,7 @@ async def issue_csrf(request: Request, response: Response) -> Response:
     response.set_cookie(
         key=settings.csrf_cookie_name,
         value=generate_csrf_token(),
-        max_age=settings.refresh_token_ttl_days * 24 * 60 * 60,
+        max_age=settings.refresh_token_ttl_days * _SECONDS_PER_DAY,
         httponly=False,
         secure=settings.cookie_secure,
         samesite=settings.cookie_samesite,

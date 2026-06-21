@@ -27,6 +27,9 @@ from app.schemas.footprint import FootprintSummary
 from app.schemas.recommendation import Nudge
 from app.services import benchmark_stats, seed
 
+_PERCENT = 100
+_K_ANONYMITY_THRESHOLD = 50  # docs/DB-SCHEMA.md §7
+
 # presentation maps for connections (Connection has no label column)
 _CONN_LABEL: dict[ProviderKind, str] = {
     ProviderKind.bank: "Bank",
@@ -170,9 +173,9 @@ async def get_benchmark(
     # with differential privacy. Compare "you vs average" against the corrected mean.
     cohort_seed = int(cohort.id.hex[:8], 16)
     avg = benchmark_stats.adjusted_average(float(cohort.avg_tco2e), cohort_seed)
-    vs = round((you_f - avg) / avg * 100) if avg else 0
+    vs = round((you_f - avg) / avg * _PERCENT) if avg else 0
     # k-anonymity: hide the cohort size below the threshold (DB-SCHEMA §7)
-    cohort_size = cohort.size if cohort.size >= 50 else None
+    cohort_size = cohort.size if cohort.size >= _K_ANONYMITY_THRESHOLD else None
     return Benchmark(
         you_tco2e=you_f,
         average_tco2e=avg,

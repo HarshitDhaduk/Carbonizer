@@ -48,6 +48,9 @@ _ENERGY_SOURCE_FACTOR = {"standard": 1.0, "green": 0.6, "renewable": 0.4}
 _DIET_TCO2E = {"meat_heavy": 2.5, "average": 2.0, "low_meat": 1.7, "vegetarian": 1.4, "vegan": 1.1}
 _SPEND_BASE_TCO2E = {"flat": 1.2, "terraced": 1.4, "semi": 1.6, "detached": 2.0}
 
+_WEEKS_PER_YEAR = 52
+_KG_PER_TONNE = 1000
+
 # health scale: total CO2e mapped to 0..1 (lower footprint → healthier biome)
 _HEALTH_LOW_T = 2.0   # excellent
 _HEALTH_HIGH_T = 15.0  # poor
@@ -96,12 +99,12 @@ def estimate(answers: dict[str, AnswerValue]) -> FootprintSummary:
     energy_src = str(a["energySource"])
     diet = str(a["diet"])
     car = str(a["carType"])
-    car_km_year = int(a["carKmPerWeek"]) * 52
+    car_km_year = int(a["carKmPerWeek"]) * _WEEKS_PER_YEAR
     short_flights = int(a["shortFlightsPerYear"])
     long_flights = int(a["longFlightsPerYear"])
 
     # transport: personal car + flights
-    car_t = car_km_year * _CAR_KG_PER_KM.get(car, 0.170) / 1000
+    car_t = car_km_year * _CAR_KG_PER_KM.get(car, 0.170) / _KG_PER_TONNE
     flights_t = short_flights * _FLIGHT_TCO2E["short"] + long_flights * _FLIGHT_TCO2E["long"]
     transport = car_t + flights_t
 

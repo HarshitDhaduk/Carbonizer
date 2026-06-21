@@ -102,10 +102,14 @@ def _spark(old: float | None, new: float) -> list[float]:
     return [round(old + (new - old) * i / 5, 2) for i in range(6)]
 
 
+_PERCENT = 100
+_DAYS_PER_MONTH = 30
+
+
 def _delta(old: float | None, new: float) -> tuple[float, Trend]:
     if not old:
         return 0.0, Trend.flat
-    pct = round((new - old) / old * 100, 1)
+    pct = round((new - old) / old * _PERCENT, 1)
     trend = Trend.down if new < old else Trend.up if new > old else Trend.flat
     return pct, trend
 
@@ -292,7 +296,7 @@ async def recompute_footprint(
         energy_activity=energy_activity,
         prior=prior,
         bank_connected=total_spend_gbp > 0,
-        monthly_spend_gbp=total_spend_gbp * 30 / WINDOW_DAYS,
+        monthly_spend_gbp=total_spend_gbp * _DAYS_PER_MONTH / WINDOW_DAYS,
     )
 
     summary = _build_summary(categories, prior_total, now)

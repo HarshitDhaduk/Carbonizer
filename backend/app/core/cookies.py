@@ -24,6 +24,10 @@ from fastapi import Response
 from app.core.config import settings
 from app.core.security import create_access_token, create_refresh_token
 
+_SECONDS_PER_MINUTE = 60
+_SECONDS_PER_HOUR = 60 * _SECONDS_PER_MINUTE
+_SECONDS_PER_DAY = 24 * _SECONDS_PER_HOUR
+
 
 def _set(
     response: Response,
@@ -58,8 +62,8 @@ def set_auth_cookies(response: Response, subject: str) -> str:
     the desired behavior (a leaked refresh from a previous session is no longer
     accepted once this fires).
     """
-    access_ttl = settings.access_token_ttl_minutes * 60
-    refresh_ttl = settings.refresh_token_ttl_days * 24 * 60 * 60
+    access_ttl = settings.access_token_ttl_minutes * _SECONDS_PER_MINUTE
+    refresh_ttl = settings.refresh_token_ttl_days * _SECONDS_PER_DAY
     _set(
         response,
         name=settings.access_cookie_name,
