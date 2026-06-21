@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, Check, Zap, type LucideIcon } from "lucide-react";
+import { Building2, Check, Sparkles, Zap, type LucideIcon } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ConnectProvider, FootprintSummary } from "@/lib/types";
 import { ApiError, clientApi } from "@/lib/client-api";
@@ -76,10 +76,52 @@ export function ConnectSources({
     setError(null);
     linkMutation.mutate(provider);
   }
+
+  const [connectingAll, setConnectingAll] = useState(false);
+  async function connectAll() {
+    if (!user || connectingAll) return;
+    setError(null);
+    setConnectingAll(true);
+    try {
+      // Sequential — the second sync's recompute sees the first sync's data,
+      // so the final summary reflects both signals merged (R1 + R2 + R3).
+      for (const s of SOURCES) {
+        if (done[s.id] !== undefined) continue;
+        const res = await clientApi.linkSource(s.id);
+        onSummary(res.summary);
+        setDone((d) => ({ ...d, [s.id]: res.recordsImported }));
+      }
+      void qc.invalidateQueries({ queryKey: queryKeys.footprint.all });
+      void qc.invalidateQueries({ queryKey: queryKeys.connections() });
+      void qc.invalidateQueries({ queryKey: queryKeys.recommendations() });
+    } catch (e) {
+      setError(
+        e instanceof ApiError ? e.message : "Couldn't connect — try again.",
+      );
+    } finally {
+      setConnectingAll(false);
+    }
+  }
+
   const busy = linkMutation.isPending ? linkMutation.variables : null;
+  const allConnected = SOURCES.every((s) => done[s.id] !== undefined);
 
   return (
     <div className={cn("space-y-2", className)}>
+      {!allConnected && (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => void connectAll()}
+          disabled={connectingAll || busy !== null}
+          className="w-full"
+        >
+          <Sparkles size={15} aria-hidden className="text-brand-400" />
+          {connectingAll
+            ? "Connecting all sources…"
+            : "Connect everything (sandbox demo)"}
+        </Button>
+      )}
       {SOURCES.map((s) => {
         const records = done[s.id];
         const connected = records !== undefined;

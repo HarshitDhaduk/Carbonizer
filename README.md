@@ -8,6 +8,7 @@ The first carbon tracker that gets *more accurate the longer you use it*, instea
 |---|---|
 | 🌍 **Try it live** | [**carbonizer-lyart.vercel.app**](https://carbonizer-lyart.vercel.app/) |
 | 📡 **Live API** | [carbonizer-api.onrender.com/docs](https://carbonizer-api.onrender.com/docs) |
+| 🎯 **Problem-statement audit trail** | [`docs/PROBLEM-STATEMENT.md`](docs/PROBLEM-STATEMENT.md) |
 | 📚 **Architecture deep-dive** | [`docs/DESIGN.md`](docs/DESIGN.md) |
 | 🚀 **Deploy your own** | [`docs/DEPLOY.md`](docs/DEPLOY.md) |
 | 🤝 **Contributing** | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
