@@ -27,6 +27,7 @@ dev = [
     "ruff==0.15.18",
     "mypy==2.1.0",
     "types-passlib",
+    "hypothesis==6.119.0",
 ]
 
 [tool.pytest.ini_options]
