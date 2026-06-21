@@ -91,9 +91,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# In development, allow any localhost/127.0.0.1 port (dev servers pick random
-# ports), so browser-side calls aren't blocked by CORS. Production uses the
-# explicit allowlist only.
+# Origin allowlist:
+#   - Dev: any localhost/127.0.0.1 port (dev servers pick random ports).
+#   - Prod: the explicit `CORS_ORIGINS` env list, PLUS the user's deploy host
+#     patterns (vercel.app preview URLs change per commit, Render's own URL
+#     is stable). State-changing requests are still gated by the CSRF
+#     double-submit cookie (see core/csrf.py), so a malicious vercel.app
+#     project can't drive the API even with a matching origin.
+_PROD_ORIGIN_REGEX = (
+    r"https://[a-z0-9-]+\.vercel\.app"
+    r"|https://[a-z0-9-]+\.onrender\.com"
+)
+_DEV_ORIGIN_REGEX = r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -101,9 +111,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
     allow_origin_regex=(
-        r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
-        if not settings.is_production
-        else None
+        _PROD_ORIGIN_REGEX if settings.is_production else _DEV_ORIGIN_REGEX
     ),
 )
 
