@@ -71,6 +71,11 @@ export function Questionnaire({
 
   return (
     <div className="w-full max-w-md animate-fade-rise">
+      {/* Screen-reader-only h1 so the questionnaire route has a top-level
+          heading on the a11y tree (the visual hierarchy uses the question
+          legend + the progress meter, which is good for sighted users but
+          leaves a SR user without route context). */}
+      <h1 className="sr-only">Build your Day-0 footprint</h1>
       <QuestionnaireProgress
         step={safeStep + 1}
         total={total}
