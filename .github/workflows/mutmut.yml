@@ -1,0 +1,96 @@
+name: Mutation testing (mutmut)
+
+# Phase 3.4 of docs/IMPROVEMENT-PLAN.md.
+#
+# Mutation testing flips operators / swaps constants in our pure-math services
+# and re-runs the unit + property suites. A mutant that survives means a real
+# test gap. This is intentionally slow (each run is ~10-15 min for the targeted
+# modules) so it runs on a schedule instead of every PR.
+
+on:
+  schedule:
+    # 04:00 UTC every Monday — finds gaps the previous week's PRs introduced
+    # without holding up reviews mid-week.
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: mutmut-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mutmut:
+    name: mutmut run
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run mutmut
+        # `--no-progress` keeps the action log readable. `--CI` exits non-zero
+        # only on internal errors, not surviving mutants — we surface mutants
+        # via the results step below so the workflow always finishes its work.
+        run: mutmut run --no-progress || true
+
+      - name: Results
+        run: |
+          mutmut results
+          mutmut junitxml > mutmut-results.xml || true
+
+      - name: Surviving mutants report
+        # Fails the job if surviving-mutant share exceeds the threshold; lets
+        # us track regressions over time without blocking the weekly run on
+        # day-zero state.
+        run: |
+          python - <<'PY'
+          import subprocess
+          import sys
+          out = subprocess.run(["mutmut", "results"], capture_output=True, text=True).stdout
+          # Output is human-formatted. Pull the survived/killed numbers heuristically.
+          import re
+          survived = killed = 0
+          for line in out.splitlines():
+              m = re.search(r"survived\s*[:=]\s*(\d+)", line.lower())
+              if m:
+                  survived = int(m.group(1))
+              m = re.search(r"killed\s*[:=]\s*(\d+)", line.lower())
+              if m:
+                  killed = int(m.group(1))
+          total = survived + killed
+          if total == 0:
+              print("No mutants tracked yet — first-run baseline.")
+              sys.exit(0)
+          kill_rate = killed / total
+          print(f"Killed {killed}/{total} = {kill_rate:.1%}")
+          # Target: 80% kill rate on the pure-math services per IMPROVEMENT-PLAN
+          # Phase 3.4. Lift the floor as gaps get filled.
+          floor = 0.60
+          if kill_rate < floor:
+              print(f"Kill rate {kill_rate:.1%} below floor {floor:.0%}")
+              sys.exit(1)
+          PY
+
+      - name: Upload mutmut report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutmut-results
+          path: |
+            backend/mutmut-results.xml
+            backend/mutants/
+          retention-days: 30

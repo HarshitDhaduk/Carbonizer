@@ -31,7 +31,24 @@ dev = [
     "hypothesis==6.119.0",
     "testcontainers[postgres]==4.9.0",
     "psycopg[binary]==3.2.3",
+    "mutmut==3.6.0",
 ]
+
+# Phase 3.4 — mutation testing. Run on a weekly schedule (see
+# .github/workflows/mutmut.yml). Targets the pure-math services where
+# we already have unit + property coverage; mutation testing measures
+# how often a flipped operator or a swapped constant survives.
+[tool.mutmut]
+paths_to_mutate = [
+    "app/services/carbon.py",
+    "app/services/estimator.py",
+    "app/services/impute.py",
+    "app/services/benchmark_stats.py",
+    "app/services/attribution.py",
+]
+runner = "python -m pytest -x -q tests/test_api.py tests/test_estimator_properties.py"
+# Skip integration tests; mutation testing only on the pure-math path.
+tests_dir = "tests"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
