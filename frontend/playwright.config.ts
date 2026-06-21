@@ -63,6 +63,11 @@ export default defineConfig({
       timeout: 240_000,
       env: {
         NEXT_PUBLIC_API_BASE_URL: `http://127.0.0.1:${BACKEND_PORT}/api/v1`,
+        // next.config rewrite source — same-origin `/api/v1/...` requests
+        // from the browser go through Next.js's proxy to this URL. Default in
+        // next.config is :8000; override here so the SSR base, the browser
+        // proxy target, and the spawned backend all agree on BACKEND_PORT.
+        LOCAL_API_TARGET: `http://127.0.0.1:${BACKEND_PORT}`,
       },
     },
   ],

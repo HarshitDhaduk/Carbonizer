@@ -656,6 +656,37 @@ async def test_csrf_skipped_for_bearer_auth(
     assert resp.status_code == 503
 
 
+async def test_csrf_skipped_when_bearer_present_alongside_cookies(
+    client: AsyncClient, api_prefix: str
+) -> None:
+    """Bearer header alongside the session cookies still bypasses CSRF.
+
+    Use case: an integration test or machine client that reused a logged-in
+    browser's cookie jar. The bearer header is the deliberate signal — once
+    it's present, we trust the caller's CSRF exposure is nil (the header
+    can't be set cross-origin without a CORS preflight). Without this skip,
+    the e2e ``connect-source`` test would have to manually plumb the
+    X-CSRF-Token from the cookie just to no-op the check.
+    """
+    from app.core.config import settings as s
+
+    login = await client.post(
+        f"{api_prefix}/auth/login",
+        data={"username": s.demo_email, "password": s.demo_password},
+    )
+    assert login.status_code == 200
+    token = login.json()["accessToken"]
+    # cookies are still in the jar — CSRF normally fires for state-changing POSTs.
+    assert s.access_cookie_name in client.cookies
+    resp = await client.post(
+        f"{api_prefix}/connections/bank/link",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    # Reaches the handler (CSRF gate skipped because of the Bearer header);
+    # 503 because seed mode has no DB.
+    assert resp.status_code == 503
+
+
 async def test_refresh_rotates_cookies(client: AsyncClient, api_prefix: str) -> None:
     """/auth/refresh issues a fresh access + CSRF cookie using the refresh JWT."""
     from app.core.config import settings as s

@@ -63,7 +63,16 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Only enforce CSRF when the request is using cookie auth. Bearer-auth
-        # requests (machine clients, /docs, our own tests) don't need it.
+        # requests (machine clients, /docs, our own tests) don't need it —
+        # bearer tokens aren't automatically attached by the browser, so
+        # they're inherently not vulnerable to CSRF. We check the header BEFORE
+        # the cookie check so a test or tool that holds both (e.g. an API
+        # client that reused a logged-in browser's cookie jar) still gets
+        # exempted on the bearer path, instead of being rejected for missing
+        # an X-CSRF-Token header it shouldn't need to send.
+        auth = request.headers.get("authorization") or ""
+        if auth.lower().startswith("bearer "):
+            return await call_next(request)
         if settings.access_cookie_name not in request.cookies:
             return await call_next(request)
 
