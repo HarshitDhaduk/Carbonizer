@@ -559,3 +559,157 @@ async def test_logout_clears_cookies(client: AsyncClient, api_prefix: str) -> No
     # After clear, /me should return 401 (no auth cookie)
     me = await client.get(f"{api_prefix}/auth/me")
     assert me.status_code == 401
+
+
+# --- Phase 2.7: GDPR/DPDP data-rights ---------------------------------------
+
+
+async def test_privacy_export_requires_auth(
+    client: AsyncClient, api_prefix: str
+) -> None:
+    resp = await client.post(f"{api_prefix}/privacy/export")
+    assert resp.status_code == 401
+
+
+async def test_privacy_export_seed_mode_503(
+    client: AsyncClient, api_prefix: str, auth_headers: dict[str, str]
+) -> None:
+    """Seed mode has no DB → data export is unavailable."""
+    resp = await client.post(f"{api_prefix}/privacy/export", headers=auth_headers)
+    assert resp.status_code == 503
+
+
+async def test_privacy_erase_requires_auth(
+    client: AsyncClient, api_prefix: str
+) -> None:
+    resp = await client.post(f"{api_prefix}/privacy/erase")
+    assert resp.status_code == 401
+
+
+async def test_privacy_erase_seed_mode_503(
+    client: AsyncClient, api_prefix: str, auth_headers: dict[str, str]
+) -> None:
+    resp = await client.post(f"{api_prefix}/privacy/erase", headers=auth_headers)
+    assert resp.status_code == 503
+
+
+def test_dsr_erasure_grace_is_48_hours() -> None:
+    """Regression: shortening the grace window is a regulator-visible change."""
+    from datetime import timedelta
+
+    from app.services.dsr import ERASURE_GRACE
+
+    assert timedelta(hours=48) == ERASURE_GRACE
+
+
+# --- Phase 2.8: envelope encryption -----------------------------------------
+
+
+def test_crypto_roundtrip_dev_key() -> None:
+    """Encrypt → decrypt returns the original plaintext in dev mode (derived key)."""
+    from app.core import crypto
+
+    crypto.get_fernet.cache_clear()
+    ct = crypto.encrypt("provider-bearer-abc123")
+    assert isinstance(ct, bytes)
+    assert b"provider-bearer-abc123" not in ct  # ciphertext is opaque
+    assert crypto.decrypt(ct) == "provider-bearer-abc123"
+
+
+def test_crypto_decrypt_none_returns_none() -> None:
+    from app.core import crypto
+
+    assert crypto.decrypt(None) is None
+
+
+def test_crypto_decrypt_rejects_wrong_key() -> None:
+    """Ciphertext under one key is not decryptable under another."""
+    from cryptography.fernet import Fernet, InvalidToken
+
+    from app.core import crypto
+
+    crypto.get_fernet.cache_clear()
+    ct = crypto.encrypt("secret")
+    # swap to a different Fernet key
+    other = Fernet(Fernet.generate_key())
+    try:
+        other.decrypt(ct)
+    except InvalidToken:
+        pass
+    else:  # pragma: no cover
+        raise AssertionError("Fernet decrypt must reject a foreign ciphertext")
+
+
+def test_crypto_production_requires_key_env() -> None:
+    """Settings(environment=production, encryption_key="") + a fresh get_fernet
+    must refuse to derive from SECRET_KEY."""
+    from app.core import config, crypto
+
+    # Build a fake production settings instance
+    prod = config.Settings(
+        environment="production",
+        secret_key="a-real-rotation-of-the-default-key",
+        demo_password="not-default-demo",
+        database_url="postgresql+asyncpg://u:p@db/x",
+        encryption_key="",
+    )
+    crypto.get_fernet.cache_clear()
+    real_settings = crypto.settings
+    crypto.settings = prod  # type: ignore[assignment]
+    try:
+        try:
+            crypto.get_fernet()
+        except crypto.InsecureEncryptionKeyError as e:
+            assert "ENCRYPTION_KEY" in str(e)
+        else:  # pragma: no cover
+            raise AssertionError("missing ENCRYPTION_KEY in prod must raise")
+    finally:
+        crypto.settings = real_settings  # type: ignore[assignment]
+        crypto.get_fernet.cache_clear()
+
+
+def test_connection_set_access_token_encrypts() -> None:
+    """set_access_token writes ciphertext; get_access_token round-trips."""
+    from app.core import crypto
+    from app.models.connection import (
+        Connection,
+        get_access_token,
+        set_access_token,
+    )
+    from app.models.enums import ProviderKind
+
+    crypto.get_fernet.cache_clear()
+    conn = Connection(provider=ProviderKind.bank)
+    set_access_token(conn, "real-oauth-token-xyz")
+
+    assert conn.access_token_enc is not None
+    assert b"real-oauth-token-xyz" not in conn.access_token_enc
+    assert get_access_token(conn) == "real-oauth-token-xyz"
+
+    # clearing
+    set_access_token(conn, None)
+    assert conn.access_token_enc is None
+    assert get_access_token(conn) is None
+
+
+def test_dsr_export_omits_access_tokens() -> None:
+    """The export bundle must not include the encrypted-or-plaintext provider
+    access token, even though the column survives the dump."""
+    from app.services.dsr import _dump
+
+    class _FakeConn:
+        class __table__:
+            class _Col:
+                def __init__(self, name: str) -> None:
+                    self.name = name
+
+            columns = (_Col("id"), _Col("provider"), _Col("access_token_enc"))
+
+        id = "abc"
+        provider = "bank"
+        access_token_enc = b"\x00\x01ciphertext"
+
+    dumped = _dump(_FakeConn())
+    # _safe coerces bytes → None; the privacy router additionally strips the key.
+    assert dumped["access_token_enc"] is None
+    assert dumped["id"] == "abc"

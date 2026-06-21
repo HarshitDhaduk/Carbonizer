@@ -10,6 +10,7 @@ PyJWT==2.10.1
 passlib[argon2]==1.7.4
 python-multipart==0.0.17
 slowapi==0.1.9
+cryptography==44.0.0
 
 # dev / test
 pytest==8.3.4

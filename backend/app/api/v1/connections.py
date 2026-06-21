@@ -6,13 +6,13 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_optional_user, require_user
 from app.db.session import get_db
-from app.models.connection import Connection
+from app.models.connection import Connection, set_access_token
 from app.models.enums import ConnStatus, ProviderKind
 from app.models.ingestion import RawEnergyRead, RawTransaction
 from app.schemas.connection import (
@@ -20,7 +20,7 @@ from app.schemas.connection import (
     ConnectResult,
     DataConnection,
 )
-from app.services import bank_sync, dashboard
+from app.services import audit, bank_sync, dashboard
 
 router = APIRouter(prefix="/connections", tags=["connections"])
 
@@ -52,7 +52,10 @@ def _user_uuid(subject: str) -> uuid.UUID:
 
 
 async def _connect_and_sync(
-    db: AsyncSession, uid: uuid.UUID, kind: ProviderKind
+    db: AsyncSession,
+    uid: uuid.UUID,
+    kind: ProviderKind,
+    request: Request | None = None,
 ) -> ConnectResult:
     """Upsert the connection, pull from the sandbox provider, recompute."""
     now = datetime.now(UTC)
@@ -62,12 +65,17 @@ async def _connect_and_sync(
         )
     )
     conn = res.scalar_one_or_none()
+    is_new = conn is None
     if conn is None:
         conn = Connection(user_id=uid, provider=kind)
         db.add(conn)
         await db.flush()  # assign conn.id for the FK on raw_* rows
     conn.status = ConnStatus.connected
     conn.external_account_ref = "sandbox-account"
+    # Sandbox providers don't issue real tokens, but we exercise the encryption
+    # path with a placeholder so production swap-in (real OAuth tokens) doesn't
+    # introduce a fresh untested code path.
+    set_access_token(conn, "sandbox-token")
     conn.last_sync_at = now
 
     if kind is ProviderKind.bank:
@@ -75,6 +83,14 @@ async def _connect_and_sync(
     else:
         imported = await bank_sync.sync_meter(db, uid, conn.id)
     summary = await bank_sync.recompute_footprint(db, uid)
+    await audit.record(
+        db,
+        action="connection.link" if is_new else "connection.sync",
+        actor=str(uid),
+        resource_type="connection",
+        resource_id=str(conn.id),
+        request=request,
+    )
     await db.commit()
 
     return ConnectResult(
@@ -97,6 +113,7 @@ async def list_connections(
 
 @router.post("/{provider}/link", response_model=ConnectResult)
 async def link_connection(
+    request: Request,
     provider: ConnectionId,
     subject: str = Depends(require_user),
     db: AsyncSession | None = Depends(get_db),
@@ -109,11 +126,12 @@ async def link_connection(
             detail=f"{provider} ingestion is not wired yet.",
         )
     db = _require_db(db)
-    return await _connect_and_sync(db, _user_uuid(subject), _WIRED[provider])
+    return await _connect_and_sync(db, _user_uuid(subject), _WIRED[provider], request)
 
 
 @router.post("/{provider}/sync", response_model=ConnectResult)
 async def sync_connection(
+    request: Request,
     provider: ConnectionId,
     subject: str = Depends(require_user),
     db: AsyncSession | None = Depends(get_db),
@@ -135,11 +153,12 @@ async def sync_connection(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"{provider} not connected"
         )
-    return await _connect_and_sync(db, uid, kind)
+    return await _connect_and_sync(db, uid, kind, request)
 
 
 @router.delete("/{provider}")
 async def disconnect(
+    request: Request,
     provider: ConnectionId,
     subject: str = Depends(require_user),
     db: AsyncSession | None = Depends(get_db),
@@ -161,6 +180,14 @@ async def disconnect(
         delete(Connection).where(
             Connection.user_id == uid, Connection.provider == kind
         )
+    )
+    await audit.record(
+        db,
+        action="connection.disconnect",
+        actor=subject,
+        resource_type="connection",
+        resource_id=provider,
+        request=request,
     )
     await db.commit()
     return {"status": "disconnected", "provider": provider}
