@@ -13,21 +13,21 @@ and what remains for Phase 2 follow-ups (cookies + CSRF + GDPR DSRs).
 | # | Category | Status | Where |
 |---|---|---|---|
 | A01 | Broken Access Control | ✅ | All routes use `Depends(require_user)` / `get_optional_user`. JWT subject validated against UUID. `/auth/me` returns 404 on subject mismatch. |
-| A02 | Cryptographic Failures | ✅ / ~ | **Argon2id** for passwords ([core/security.py](../backend/app/core/security.py)). JWT signed HS256 with rotating key. ~ Envelope encryption for `connections.access_token_enc` is a Phase 2.8 follow-up. |
+| A02 | Cryptographic Failures | ✅ | **Argon2id** for passwords ([core/security.py](../backend/app/core/security.py)). JWT signed HS256 with rotating key. **Envelope encryption (Fernet)** for `connections.access_token_enc` via [core/crypto.py](../backend/app/core/crypto.py); production refuses to boot without `ENCRYPTION_KEY`. |
 | A03 | Injection | ✅ | SQLAlchemy ORM exclusively; no raw SQL string concatenation. Pydantic v2 validates every input. |
 | A04 | Insecure Design | ✅ | Privacy-by-design through the data model (k-anonymity on cohorts, partitioned `raw_*` for retention drops). |
 | A05 | Security Misconfiguration | ✅ | **Hard-fail in production** on default `SECRET_KEY` / `DATABASE_URL` / `DEMO_PASSWORD` ([core/config.py](../backend/app/core/config.py)). **Security headers middleware** ([core/security_headers.py](../backend/app/core/security_headers.py)) sets X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy, COOP, CORP, CSP (API). **HSTS** in production only. |
 | A06 | Vulnerable Components | ✅ | **`pip-audit`** (backend) + **`npm audit --audit-level=high`** (frontend) run in CI on every PR. Dependabot weekly with grouped PRs to avoid peer-dep conflicts. |
-| A07 | Identity & Auth Failures | ✅ / ~ | **Rate limiting** on `/auth/login` (5/min), `/auth/register` (3/hour), `/onboarding/progress` (120/min) via slowapi. **Stronger password policy** ([schemas/auth.py](../backend/app/schemas/auth.py)) — 12-char minimum, weak-password list, email-in-password rejected, all-letters/all-digits rejected. ~ JWT lives in localStorage today; cookie migration is the remaining Phase 2.1 item. |
+| A07 | Identity & Auth Failures | ✅ | **Rate limiting** on `/auth/login` (5/min), `/auth/register` (3/hour), `/onboarding/progress` (120/min) via slowapi. **Stronger password policy** ([schemas/auth.py](../backend/app/schemas/auth.py)) — 12-char minimum, weak-password list, email-in-password rejected, all-letters/all-digits rejected. **JWT lives in `HttpOnly` cookies** with `SameSite=Lax` + double-submit CSRF token ([core/csrf.py](../backend/app/core/csrf.py)); localStorage tokens are gone. |
 | A08 | Software & Data Integrity | ✅ | Idempotent ingestion via `ON CONFLICT DO NOTHING` on natural keys. Footprint snapshot is regenerable from raw data + factors. |
-| A09 | Security Logging & Monitoring | ~ | **Audit log writer** ([services/audit.py](../backend/app/services/audit.py)) wired to auth events; partitioned `audit_log` table ready for 1-year retention. Connection / privacy actions wiring is the remaining task. |
+| A09 | Security Logging & Monitoring | ✅ | **Audit log writer** ([services/audit.py](../backend/app/services/audit.py)) wired to auth events (register/login/logout), connection link/sync/disconnect, and privacy DSR events (request/download/cancel); partitioned `audit_log` table ready for 1-year retention. |
 | A10 | SSRF | ✅ | Backend doesn't fetch user-supplied URLs (sandbox providers are deterministic synthetic data). |
 
 ## Carbonizer-specific risks
 
 | Risk | Mitigation | Status |
 |---|---|---|
-| **JWT exfil via XSS** (localStorage) | Move to `HttpOnly` cookies + CSRF double-submit token | ~ planned (Phase 2.1) |
+| **JWT exfil via XSS** (localStorage) | `HttpOnly` cookies + CSRF double-submit ([core/csrf.py](../backend/app/core/csrf.py)) | ✅ |
 | **Default secrets leak to prod** | `model_validator` raises `InsecureProductionConfigError` at startup | ✅ |
 | **Credential stuffing / brute force** | slowapi (5/min/IP login + 20/hr/email); 429 with Retry-After | ✅ |
 | **Cohort de-anonymization** | k-anonymity threshold k=50 + Laplace DP on cohort mean | ✅ |
@@ -50,11 +50,26 @@ From [`tests/test_api.py`](../backend/tests/test_api.py):
 - `test_login_rate_limit_fires` — 6th login attempt within a minute returns 429 with `Retry-After`.
 - `test_audit_record_seed_mode_is_noop` — audit writer never crashes the request, even with `db=None`.
 
-## Phase 2 follow-ups (not in this drop)
+## Phase 2 — complete
 
-These were deferred to keep this commit set focused. Each is its own PR.
+All Phase 2 items in [IMPROVEMENT-PLAN.md](IMPROVEMENT-PLAN.md) are now landed.
+The follow-ups that were deferred in the first drop have all shipped:
 
-1. **Phase 2.1 — JWT → HttpOnly cookies + CSRF.** Cross-stack refactor: backend issues cookies on `/auth/login` / `/auth/register` / `/auth/refresh`; frontend drops the localStorage token from the auth store; double-submit CSRF token on state-changing routes.
-2. **Phase 2.7 — GDPR / DPDP data-rights handlers.** Real `/privacy/export` job (assemble bundle → S3 signed URL) and `/privacy/erase` with 48-h grace.
-3. **Phase 2.8 — Envelope encryption** for `connections.access_token_enc`.
-4. **Audit log wiring** for connection link/disconnect and privacy DSR events.
+* **Phase 2.1 — JWT → HttpOnly cookies + CSRF** — `affbaba`. Cookies set on
+  `/auth/login`, `/auth/register`, `/auth/refresh`; `/auth/logout` clears them;
+  double-submit CSRF on every state-changing route; frontend `client-api.ts`
+  uses `credentials: "include"` and echoes the `cb_csrf` cookie in
+  `X-CSRF-Token`.
+* **Phase 2.7 — GDPR / DPDP data-rights handlers** — `0708829`. Real
+  `/privacy/export` (recorded as a `DsrJob`, bundle streamed by
+  `/privacy/export/{id}/download`), `/privacy/erase` with a 48-h grace, and
+  `/privacy/erase/{id}/cancel`. The sweep service purges overdue rows;
+  production deploys point a cron at it.
+* **Phase 2.8 — Envelope encryption** — `0708829`. Fernet (`core/crypto.py`)
+  wraps every write to `connections.access_token_enc`; production refuses to
+  boot without an explicit `ENCRYPTION_KEY`. The sandbox link flow exercises
+  the encryption path with a placeholder token so the prod swap-in doesn't
+  introduce an untested code path.
+* **Audit log wiring** — `0708829`. Connection link/sync/disconnect and
+  privacy DSR events all write to `audit_log` via the existing
+  `audit.record` service.
