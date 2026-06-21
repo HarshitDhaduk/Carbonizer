@@ -17,9 +17,13 @@ import { EstimateReveal } from "./EstimateReveal";
  * Orchestrates: auth gate → (returning user? → dashboard) → questionnaire → reveal.
  * A signed-in user who has already completed onboarding is routed straight to the
  * dashboard rather than being asked the questions again.
+ *
+ * Auth is cookie-based (Phase 2.1) — we probe /auth/me on mount, then branch on
+ * the resulting `user`. No token plumbing.
  */
 export function OnboardingFlow() {
-  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
+  const hydrated = useAuthStore((s) => s.hydrated);
   const loadMe = useAuthStore((s) => s.loadMe);
   const router = useRouter();
 
@@ -35,20 +39,17 @@ export function OnboardingFlow() {
     step: number;
   } | null>(null);
 
-  // wait for zustand-persist to rehydrate the token before deciding anything
-  const [hydrated, setHydrated] = useState(false);
+  // First /auth/me probe — cookies travel automatically.
   useEffect(() => {
-    setHydrated(useAuthStore.persist.hasHydrated());
-    return useAuthStore.persist.onFinishHydration(() => setHydrated(true));
-  }, []);
-
-  // returning-user check: completed profile → straight to the dashboard
-  useEffect(() => {
-    if (!hydrated || !token || completed !== null || summary) return;
-    let active = true;
     void loadMe();
+  }, [loadMe]);
+
+  // Returning-user check: completed profile → straight to the dashboard.
+  useEffect(() => {
+    if (!hydrated || !user || completed !== null || summary) return;
+    let active = true;
     clientApi
-      .getOnboardingProfile(token)
+      .getOnboardingProfile()
       .then((p) => {
         if (!active) return;
         if (p.completed) {
@@ -59,11 +60,10 @@ export function OnboardingFlow() {
           setCompleted(false);
         }
       })
-      .catch((e) => {
-        // on a 401 the token is stale; otherwise let them onboard
+      .catch(async (e) => {
         if (!active) return;
         if (e instanceof ApiError && e.status === 401) {
-          useAuthStore.getState().logout();
+          await useAuthStore.getState().logout();
         } else {
           setCompleted(false);
         }
@@ -71,36 +71,34 @@ export function OnboardingFlow() {
     return () => {
       active = false;
     };
-  }, [hydrated, token, completed, summary, loadMe, router]);
+  }, [hydrated, user, completed, summary, router]);
 
-  // fetch the questionnaire once we know the user still needs onboarding
+  // Fetch the questionnaire once we know the user still needs onboarding.
   useEffect(() => {
-    if (!token || questions || completed !== false) return;
+    if (!user || questions || completed !== false) return;
     let active = true;
     clientApi
-      .getOnboardingQuestions(token)
+      .getOnboardingQuestions()
       .then((q) => active && setQuestions(q.questions))
       .catch((e) => active && setError(messageFrom(e)));
     return () => {
       active = false;
     };
-  }, [token, questions, completed]);
+  }, [user, questions, completed]);
 
-  // debounced autosave of partial progress (fires from the questionnaire)
+  // Debounced autosave of partial progress (fires from the questionnaire).
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleProgress = useCallback(
     (answers: OnboardingAnswers, step: number) => {
-      if (!token) return;
+      if (!user) return;
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
-        void clientApi
-          .saveOnboardingProgress(token, answers, step)
-          .catch(() => {
-            /* autosave is best-effort; don't interrupt the user */
-          });
+        void clientApi.saveOnboardingProgress(answers, step).catch(() => {
+          /* autosave is best-effort; don't interrupt the user */
+        });
       }, 500);
     },
-    [token],
+    [user],
   );
   useEffect(
     () => () => void (saveTimer.current && clearTimeout(saveTimer.current)),
@@ -108,11 +106,11 @@ export function OnboardingFlow() {
   );
 
   async function handleComplete(answers: OnboardingAnswers) {
-    if (!token) return;
+    if (!user) return;
     setSubmitting(true);
     setError(null);
     try {
-      setSummary(await clientApi.submitEstimate(token, answers));
+      setSummary(await clientApi.submitEstimate(answers));
     } catch (e) {
       setError(messageFrom(e));
     } finally {
@@ -124,7 +122,7 @@ export function OnboardingFlow() {
     <main className="flex min-h-dvh items-center justify-center bg-bg-base px-4 py-10">
       {!hydrated ? (
         <Loading label="Loading…" />
-      ) : !token ? (
+      ) : !user ? (
         <AuthGate />
       ) : completed !== false ? (
         // While checking the profile, or redirecting a returning user straight

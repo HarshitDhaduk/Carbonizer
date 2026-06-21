@@ -34,33 +34,33 @@ export function ProfileClient() {
 }
 
 function ProfileContent() {
-  const token = useAuthStore((s) => s.token);
+  const authedUser = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
-    if (!token) return;
+    if (!authedUser) return;
     let active = true;
     Promise.all([
-      clientApi.getMe(token),
-      clientApi.getConnections(token),
-      clientApi.getOnboardingProfile(token),
-      clientApi.getOnboardingQuestions(token),
+      clientApi.getMe(),
+      clientApi.getConnections(),
+      clientApi.getOnboardingProfile(),
+      clientApi.getOnboardingQuestions(),
     ])
-      .then(([user, connections, profile, q]) => {
+      .then(([me, connections, profile, q]) => {
         if (active)
-          setData({ user, connections, profile, questions: q.questions });
+          setData({ user: me, connections, profile, questions: q.questions });
       })
       .catch(() => active && setError("Couldn't load your profile."));
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [authedUser]);
 
-  function confirmLogout() {
-    logout();
+  async function confirmLogout() {
+    await logout();
     window.location.assign("/");
   }
 

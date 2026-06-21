@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -37,6 +38,24 @@ class Settings(BaseSettings):
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 30
 
+    # --- auth cookies (Phase 2.1) ---
+    # Names use a `cb_` prefix in dev so the cookie is accepted on http://localhost
+    # (the `__Host-` prefix mandates Secure, which we can't honor over plain HTTP).
+    # The production deploy can override these to `__Host-access` / `__Host-refresh`
+    # / `__Host-csrf` once Secure is on.
+    access_cookie_name: str = "cb_access"
+    refresh_cookie_name: str = "cb_refresh"
+    csrf_cookie_name: str = "cb_csrf"
+    # SameSite=Lax balances CSRF protection (browsers don't send the cookie on
+    # cross-site form posts) with usability (top-level navigation still carries
+    # it, so a deep link from email works). Lax is the modern browser default.
+    cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+    # Encryption key for envelope-encrypting provider tokens at rest (Phase 2.8).
+    # Must be a base64-encoded 32-byte key (Fernet format). Generate with
+    # `python -m app.scripts.gen_encryption_key`. Empty string falls back to a
+    # deterministic dev-only key.
+    encryption_key: str = ""
+
     # --- CORS ---
     # Stored as a raw comma-separated string (not list[str]) so pydantic-settings
     # doesn't try to JSON-decode the .env value; exposed as a list via the property.
@@ -61,6 +80,12 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment.lower() in {"production", "prod"}
+
+    @property
+    def cookie_secure(self) -> bool:
+        """Mark auth cookies Secure in production (TLS-only). Off in dev so
+        cookies are accepted over http://localhost."""
+        return self.is_production
 
     @model_validator(mode="after")
     def _assert_no_defaults_in_production(self) -> Settings:

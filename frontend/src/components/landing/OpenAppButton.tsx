@@ -12,10 +12,10 @@ import { useAuthStore } from "@/store/auth-store";
  * (server + first client render show "Open app", then it updates if logged in).
  */
 export function OpenAppButton() {
-  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  const loggedIn = mounted && !!token;
+  const loggedIn = mounted && !!user;
 
   return (
     <Link href="/dashboard">

@@ -9,8 +9,9 @@ import { useAuthStore } from "@/store/auth-store";
 import { cn } from "@/lib/cn";
 
 /**
- * Compact sign-in / create-account card. On success the auth store sets the token,
- * which re-renders the parent flow into the questionnaire.
+ * Compact sign-in / create-account card. On success the backend sets HttpOnly
+ * auth cookies, the store loads the user, and the parent flow re-renders into
+ * the questionnaire.
  */
 export function AuthGate() {
   const [mode, setMode] = useState<"login" | "register">("register");
@@ -104,7 +105,7 @@ export function AuthGate() {
             clearErrors();
           }}
           autoComplete={isRegister ? "new-password" : "current-password"}
-          placeholder={isRegister ? "At least 8 characters" : "Your password"}
+          placeholder={isRegister ? "At least 12 characters" : "Your password"}
           show={showPassword}
           onToggle={() => setShowPassword((s) => !s)}
         />
@@ -184,7 +185,7 @@ function PasswordField({
           type={show ? "text" : "password"}
           autoComplete={autoComplete}
           required
-          minLength={8}
+          minLength={12}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className={cn(

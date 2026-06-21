@@ -24,20 +24,20 @@ export function InsightsClient() {
 }
 
 function InsightsContent() {
-  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
   const [summary, setSummary] = useState<FootprintSummary | null>(null);
   const [attr, setAttr] = useState<Attribution | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!token) return;
+    if (!user) return;
     let active = true;
     clientApi
-      .getFootprintSummary(token)
+      .getFootprintSummary()
       .then((s) => active && setSummary(s))
       .catch(() => active && setError("Couldn't load your insights."));
     clientApi
-      .getAttribution(token)
+      .getAttribution()
       .then((a) => active && setAttr(a))
       .catch(() => {
         /* attribution is optional */
@@ -45,7 +45,7 @@ function InsightsContent() {
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [user]);
 
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!summary) return <div className="skeleton h-64 rounded-card" />;

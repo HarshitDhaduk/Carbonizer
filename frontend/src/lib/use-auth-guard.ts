@@ -1,27 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import type { AuthUser } from "@/lib/types";
 import { useAuthStore } from "@/store/auth-store";
 
 /**
- * Gate an authenticated page: waits for zustand-persist to rehydrate the token,
- * then redirects signed-out visitors to onboarding. Returns `ready` once we have
- * a confirmed token so the page can fetch its data.
+ * Gate an authenticated page: probes /auth/me on mount (cookies travel
+ * automatically), then redirects unauthenticated visitors to onboarding.
+ * Returns `ready` once the probe has resolved and the user is known.
  */
-export function useAuthGuard(): { ready: boolean; token: string | null } {
-  const token = useAuthStore((s) => s.token);
+export function useAuthGuard(): { ready: boolean; user: AuthUser | null } {
+  const user = useAuthStore((s) => s.user);
+  const hydrated = useAuthStore((s) => s.hydrated);
+  const loadMe = useAuthStore((s) => s.loadMe);
   const router = useRouter();
-  const [hydrated, setHydrated] = useState(false);
+  const probed = useRef(false);
 
   useEffect(() => {
-    setHydrated(useAuthStore.persist.hasHydrated());
-    return useAuthStore.persist.onFinishHydration(() => setHydrated(true));
-  }, []);
+    if (probed.current) return;
+    probed.current = true;
+    void loadMe();
+  }, [loadMe]);
 
   useEffect(() => {
-    if (hydrated && !token) router.replace("/onboarding");
-  }, [hydrated, token, router]);
+    if (hydrated && !user) router.replace("/onboarding");
+  }, [hydrated, user, router]);
 
-  return { ready: hydrated && !!token, token: hydrated ? token : null };
+  return { ready: hydrated && !!user, user };
 }

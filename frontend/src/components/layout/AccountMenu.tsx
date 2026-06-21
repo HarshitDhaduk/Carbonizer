@@ -16,10 +16,10 @@ export function AccountMenu({ className }: { className?: string }) {
   const email = user?.email ?? "Account";
   const initial = email.charAt(0).toUpperCase();
 
-  function confirmLogout() {
-    logout();
+  async function confirmLogout() {
+    await logout();
     // hard navigation to the landing page — avoids the dashboard auth-guard
-    // racing us to /onboarding when the token clears, and fully resets state.
+    // racing us to /onboarding when the user clears, and fully resets state.
     window.location.assign("/");
   }
 

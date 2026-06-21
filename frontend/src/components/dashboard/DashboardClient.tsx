@@ -17,47 +17,42 @@ interface Data {
 }
 
 /**
- * The authenticated, per-user dashboard. Fetches the current user's own footprint
- * client-side with their token (the public SSR route is gone) and guards access —
- * unauthenticated visitors are sent to onboarding.
+ * The authenticated, per-user dashboard. Auth state is held in HttpOnly cookies
+ * (see store/auth-store.ts); this component just calls /auth/me on mount and
+ * routes unauthenticated visitors back to onboarding.
  */
 export function DashboardClient() {
-  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
+  const hydrated = useAuthStore((s) => s.hydrated);
   const loadMe = useAuthStore((s) => s.loadMe);
   const router = useRouter();
 
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Wait for zustand-persist to rehydrate the token from localStorage before
-  // deciding anything — otherwise the first render sees null and wrongly
-  // redirects a signed-in user to onboarding.
-  const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
-    setHydrated(useAuthStore.persist.hasHydrated());
-    return useAuthStore.persist.onFinishHydration(() => setHydrated(true));
-  }, []);
+    void loadMe();
+  }, [loadMe]);
 
   useEffect(() => {
     if (!hydrated) return;
-    if (!token) {
+    if (!user) {
       router.replace("/onboarding");
       return;
     }
-    void loadMe();
     let active = true;
     Promise.all([
-      clientApi.getFootprintSummary(token),
-      clientApi.getRecommendations(token),
-      clientApi.getBenchmark(token),
+      clientApi.getFootprintSummary(),
+      clientApi.getRecommendations(),
+      clientApi.getBenchmark(),
     ])
       .then(([summary, nudges, benchmark]) => {
         if (active) setData({ summary, nudges, benchmark });
       })
-      .catch((e) => {
+      .catch(async (e) => {
         if (!active) return;
         if (e instanceof ApiError && e.status === 401) {
-          useAuthStore.getState().logout();
+          await useAuthStore.getState().logout();
           router.replace("/onboarding");
           return;
         }
@@ -68,7 +63,7 @@ export function DashboardClient() {
     return () => {
       active = false;
     };
-  }, [hydrated, token, loadMe, router]);
+  }, [hydrated, user, router]);
 
   function onConnected(summary: FootprintSummary) {
     setData((d) => (d ? { ...d, summary } : d));
@@ -80,7 +75,7 @@ export function DashboardClient() {
         <DashboardSkeleton />
       </AppShell>
     );
-  if (!token) return null; // redirecting
+  if (!user) return null; // redirecting
 
   return (
     <AppShell>

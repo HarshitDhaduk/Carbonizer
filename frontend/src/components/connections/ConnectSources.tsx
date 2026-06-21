@@ -45,7 +45,7 @@ export function ConnectSources({
   onSummary: (summary: FootprintSummary) => void;
   className?: string;
 }) {
-  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
   const [busy, setBusy] = useState<ConnectProvider | null>(null);
   const [done, setDone] = useState<Partial<Record<ConnectProvider, number>>>(
     {},
@@ -53,11 +53,11 @@ export function ConnectSources({
   const [error, setError] = useState<string | null>(null);
 
   async function connect(provider: ConnectProvider) {
-    if (!token) return;
+    if (!user) return;
     setBusy(provider);
     setError(null);
     try {
-      const res = await clientApi.linkSource(token, provider);
+      const res = await clientApi.linkSource(provider);
       onSummary(res.summary);
       setDone((d) => ({ ...d, [provider]: res.recordsImported }));
     } catch (e) {

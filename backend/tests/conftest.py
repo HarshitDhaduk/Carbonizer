@@ -61,4 +61,8 @@ async def auth_headers(client: AsyncClient, api_prefix: str) -> dict[str, str]:
         data={"username": settings.demo_email, "password": settings.demo_password},
     )
     token = resp.json()["accessToken"]
+    # Login also sets HttpOnly auth cookies on the httpx CookieJar; wipe them
+    # so tests that pass `headers=auth_headers` exercise the Bearer-auth path
+    # cleanly without tripping CSRF on the cookie path.
+    client.cookies.clear()
     return {"Authorization": f"Bearer {token}"}

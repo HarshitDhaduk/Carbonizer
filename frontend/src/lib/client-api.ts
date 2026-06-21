@@ -2,8 +2,13 @@
  * Browser-side, authenticated API client.
  *
  * Distinct from `src/lib/api.ts`, which is the unauthenticated SSR client used by
- * server components for the public dashboard. This one runs in the browser, injects
- * the JWT bearer token, and backs auth + the onboarding flow.
+ * server components for the public dashboard. This one runs in the browser, uses
+ * HttpOnly cookies for auth (set by /auth/login), and backs auth + onboarding.
+ *
+ * Why no token plumbing — Phase 2.1 of docs/IMPROVEMENT-PLAN.md moved JWTs into
+ * `HttpOnly` cookies. The browser attaches the access cookie automatically; this
+ * module just needs `credentials: "include"` and a CSRF header echo for state-
+ * changing methods.
  */
 
 import type {
@@ -24,6 +29,8 @@ const API_BASE = (
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1"
 ).replace(/\/$/, "");
 
+const CSRF_COOKIE = "cb_csrf";
+
 /** Typed error carrying the HTTP status and the API's problem detail. */
 export class ApiError extends Error {
   constructor(
@@ -36,17 +43,36 @@ export class ApiError extends Error {
 }
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "PUT";
-  token?: string | null;
+  method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   /** JSON body (mutually exclusive with `form`). */
   json?: unknown;
   /** form-urlencoded body (OAuth2 password grant). */
   form?: Record<string, string>;
 }
 
+const STATE_CHANGING = new Set(["POST", "PUT", "DELETE", "PATCH"]);
+
+/** Read a non-HttpOnly cookie by name. Returns null in SSR. */
+function readCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = document.cookie.match(
+    new RegExp(`(?:^|;\\s*)${escaped}=([^;]*)`),
+  );
+  const value = match?.[1];
+  return value !== undefined ? decodeURIComponent(value) : null;
+}
+
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+  const method = opts.method ?? "GET";
   const headers: Record<string, string> = { Accept: "application/json" };
-  if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
+
+  // CSRF double-submit: echo the cb_csrf cookie as a header on any state-
+  // changing request. The backend rejects mismatches with 403.
+  if (STATE_CHANGING.has(method)) {
+    const csrf = readCookie(CSRF_COOKIE);
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
 
   let body: BodyInit | undefined;
   if (opts.json !== undefined) {
@@ -58,9 +84,10 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   }
 
   const res = await fetch(`${API_BASE}${path}`, {
-    method: opts.method ?? "GET",
+    method,
     headers,
     body: body ?? null,
+    credentials: "include",
     cache: "no-store",
   });
 
@@ -90,6 +117,7 @@ interface TokenResponse {
 }
 
 export const clientApi = {
+  // Auth ---------------------------------------------------------------------
   registerUser: (email: string, password: string, region = "GB") =>
     request<TokenResponse>("/auth/register", {
       method: "POST",
@@ -102,52 +130,46 @@ export const clientApi = {
       form: { username: email, password },
     }),
 
-  getMe: (token: string) => request<AuthUser>("/auth/me", { token }),
+  /** Issue a CSRF cookie if missing. Called once at app boot. */
+  ensureCsrf: () => request<void>("/auth/csrf"),
 
-  getOnboardingQuestions: (token?: string | null) =>
-    request<Questionnaire>("/onboarding/questions", { token: token ?? null }),
+  logout: () => request<void>("/auth/logout", { method: "POST" }),
 
-  getOnboardingProfile: (token: string) =>
-    request<OnboardingProfile>("/onboarding/profile", { token }),
+  refresh: () => request<TokenResponse>("/auth/refresh", { method: "POST" }),
 
-  // autosave partial onboarding so a mid-flow close can resume
-  saveOnboardingProgress: (
-    token: string,
-    answers: OnboardingAnswers,
-    currentStep: number,
-  ) =>
+  getMe: () => request<AuthUser>("/auth/me"),
+
+  // Onboarding ---------------------------------------------------------------
+  getOnboardingQuestions: () => request<Questionnaire>("/onboarding/questions"),
+
+  getOnboardingProfile: () =>
+    request<OnboardingProfile>("/onboarding/profile"),
+
+  saveOnboardingProgress: (answers: OnboardingAnswers, currentStep: number) =>
     request<OnboardingProfile>("/onboarding/progress", {
       method: "PUT",
-      token,
       json: { answers, currentStep },
     }),
 
-  submitEstimate: (token: string, answers: OnboardingAnswers) =>
+  submitEstimate: (answers: OnboardingAnswers) =>
     request<FootprintSummary>("/onboarding/estimate", {
       method: "POST",
-      token,
       json: { answers },
     }),
 
-  getFootprintSummary: (token: string, range = "12w") =>
-    request<FootprintSummary>(`/footprint/summary?range=${range}`, { token }),
+  // Footprint + insights ----------------------------------------------------
+  getFootprintSummary: (range = "12w") =>
+    request<FootprintSummary>(`/footprint/summary?range=${range}`),
 
-  getAttribution: (token: string) =>
-    request<Attribution>("/footprint/attribution", { token }),
+  getAttribution: () => request<Attribution>("/footprint/attribution"),
 
-  getRecommendations: (token: string) =>
-    request<Nudge[]>("/recommendations", { token }),
+  getRecommendations: () => request<Nudge[]>("/recommendations"),
 
-  getBenchmark: (token: string) =>
-    request<Benchmark>("/community/benchmark", { token }),
+  getBenchmark: () => request<Benchmark>("/community/benchmark"),
 
-  getConnections: (token: string) =>
-    request<DataConnection[]>("/connections", { token }),
+  // Connections -------------------------------------------------------------
+  getConnections: () => request<DataConnection[]>("/connections"),
 
-  // sandbox connect (bank | meter): imports records + returns the upgraded footprint
-  linkSource: (token: string, provider: ConnectProvider) =>
-    request<ConnectResult>(`/connections/${provider}/link`, {
-      method: "POST",
-      token,
-    }),
+  linkSource: (provider: ConnectProvider) =>
+    request<ConnectResult>(`/connections/${provider}/link`, { method: "POST" }),
 };

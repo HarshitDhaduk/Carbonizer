@@ -8,15 +8,14 @@ import { useAuthStore } from "@/store/auth-store";
 /**
  * Landing CTA that respects returning users: signed-in visitors go straight to
  * their dashboard; everyone else starts onboarding. The decision is read at click
- * time via getState(), so it's always against the rehydrated token (no flash, no
- * SSR/client mismatch).
+ * time via getState(), so it's against the latest known auth state.
  */
 export function StartTrackingButton({ className }: { className?: string }) {
   const router = useRouter();
 
   function go() {
-    const token = useAuthStore.getState().token;
-    router.push(token ? "/dashboard" : "/onboarding");
+    const user = useAuthStore.getState().user;
+    router.push(user ? "/dashboard" : "/onboarding");
   }
 
   return (

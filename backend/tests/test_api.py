@@ -425,3 +425,137 @@ async def test_audit_record_seed_mode_is_noop() -> None:
     await audit.record(
         None, action="auth.login.success", actor=None, resource_type=None
     )
+
+
+# --- Phase 2.1: HttpOnly cookies + CSRF -------------------------------------
+
+
+async def test_login_sets_auth_cookies(client: AsyncClient, api_prefix: str) -> None:
+    """Login must set HttpOnly access + refresh cookies and a readable CSRF cookie."""
+    from app.core.config import settings as s
+
+    resp = await client.post(
+        f"{api_prefix}/auth/login",
+        data={"username": s.demo_email, "password": s.demo_password},
+    )
+    assert resp.status_code == 200
+    cookies = resp.headers.get_list("set-cookie")
+    joined = "\n".join(cookies)
+    # access + refresh + csrf are all present
+    assert s.access_cookie_name in joined
+    assert s.refresh_cookie_name in joined
+    assert s.csrf_cookie_name in joined
+    # access cookie must be HttpOnly; CSRF cookie must NOT be (JS reads it)
+    access_line = next(c for c in cookies if c.startswith(f"{s.access_cookie_name}="))
+    csrf_line = next(c for c in cookies if c.startswith(f"{s.csrf_cookie_name}="))
+    assert "HttpOnly" in access_line
+    assert "HttpOnly" not in csrf_line
+    # SameSite=Lax on every cookie
+    assert "samesite=lax" in access_line.lower()
+
+
+async def test_me_via_cookie(client: AsyncClient, api_prefix: str) -> None:
+    """A logged-in client can hit /auth/me without an Authorization header — the
+    cookie jar carries the access JWT."""
+    from app.core.config import settings as s
+
+    await client.post(
+        f"{api_prefix}/auth/login",
+        data={"username": s.demo_email, "password": s.demo_password},
+    )
+    # No headers — httpx auto-attaches the cookie set by the previous request.
+    resp = await client.get(f"{api_prefix}/auth/me")
+    assert resp.status_code == 200
+    assert resp.json()["email"] == s.demo_email
+
+
+async def test_csrf_rejects_cookie_post_without_header(
+    client: AsyncClient, api_prefix: str
+) -> None:
+    """A cookie-authenticated POST without the X-CSRF-Token header is rejected 403."""
+    from app.core.config import settings as s
+
+    await client.post(
+        f"{api_prefix}/auth/login",
+        data={"username": s.demo_email, "password": s.demo_password},
+    )
+    # /connections/bank/link is a state-changing POST gated by require_user.
+    resp = await client.post(f"{api_prefix}/connections/bank/link")
+    assert resp.status_code == 403
+    assert "csrf" in resp.json()["detail"].lower()
+
+
+async def test_csrf_accepts_cookie_post_with_header(
+    client: AsyncClient, api_prefix: str
+) -> None:
+    """The same POST with X-CSRF-Token matching the cb_csrf cookie passes the CSRF gate."""
+    from app.core.config import settings as s
+
+    await client.post(
+        f"{api_prefix}/auth/login",
+        data={"username": s.demo_email, "password": s.demo_password},
+    )
+    csrf = client.cookies.get(s.csrf_cookie_name)
+    assert csrf  # set on login
+    resp = await client.post(
+        f"{api_prefix}/connections/bank/link",
+        headers={"X-CSRF-Token": csrf},
+    )
+    # CSRF gate is passed; the actual handler returns 503 in seed mode (no DB).
+    assert resp.status_code == 503
+
+
+async def test_csrf_skipped_for_bearer_auth(
+    client: AsyncClient, api_prefix: str, auth_headers: dict[str, str]
+) -> None:
+    """Bearer-auth requests don't need CSRF — the token isn't sent automatically by the browser."""
+    # auth_headers was built from the access token in the login body, not the cookie.
+    # We have to wipe the cookie jar so the request is purely Bearer-auth.
+    client.cookies.clear()
+    resp = await client.post(
+        f"{api_prefix}/connections/bank/link", headers=auth_headers
+    )
+    # Reaches the handler (no CSRF gate); fails 503 because seed mode has no DB.
+    assert resp.status_code == 503
+
+
+async def test_refresh_rotates_cookies(client: AsyncClient, api_prefix: str) -> None:
+    """/auth/refresh issues a fresh access + CSRF cookie using the refresh JWT."""
+    from app.core.config import settings as s
+
+    await client.post(
+        f"{api_prefix}/auth/login",
+        data={"username": s.demo_email, "password": s.demo_password},
+    )
+    old_csrf = client.cookies.get(s.csrf_cookie_name)
+
+    resp = await client.post(f"{api_prefix}/auth/refresh")
+    assert resp.status_code == 200
+    new_csrf = client.cookies.get(s.csrf_cookie_name)
+    # CSRF rotated, refresh cookie still present
+    assert new_csrf and new_csrf != old_csrf
+
+
+async def test_refresh_without_cookie_is_401(
+    client: AsyncClient, api_prefix: str
+) -> None:
+    resp = await client.post(f"{api_prefix}/auth/refresh")
+    assert resp.status_code == 401
+
+
+async def test_logout_clears_cookies(client: AsyncClient, api_prefix: str) -> None:
+    from app.core.config import settings as s
+
+    await client.post(
+        f"{api_prefix}/auth/login",
+        data={"username": s.demo_email, "password": s.demo_password},
+    )
+    csrf = client.cookies.get(s.csrf_cookie_name)
+    assert csrf
+    resp = await client.post(
+        f"{api_prefix}/auth/logout", headers={"X-CSRF-Token": csrf}
+    )
+    assert resp.status_code == 204
+    # After clear, /me should return 401 (no auth cookie)
+    me = await client.get(f"{api_prefix}/auth/me")
+    assert me.status_code == 401

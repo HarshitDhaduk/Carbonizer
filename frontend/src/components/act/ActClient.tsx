@@ -18,21 +18,21 @@ export function ActClient() {
 }
 
 function ActContent() {
-  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
   const [nudges, setNudges] = useState<Nudge[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!token) return;
+    if (!user) return;
     let active = true;
     clientApi
-      .getRecommendations(token)
+      .getRecommendations()
       .then((n) => active && setNudges(n))
       .catch(() => active && setError("Couldn't load your actions."));
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [user]);
 
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!nudges) return <div className="skeleton h-64 rounded-card" />;

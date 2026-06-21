@@ -18,6 +18,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import settings
+from app.core.csrf import CSRFMiddleware
 from app.core.logging import configure_logging
 from app.core.rate_limit import limiter
 from app.core.security_headers import SecurityHeadersMiddleware
@@ -71,6 +72,10 @@ app.add_middleware(
 )
 
 app.add_middleware(SecurityHeadersMiddleware)
+# CSRF middleware after CORS so preflight OPTIONS still gets a CORS-correct
+# response, before SlowAPI so a rejected CSRF attempt isn't counted against
+# the rate budget of a legitimate caller.
+app.add_middleware(CSRFMiddleware)
 app.add_middleware(SlowAPIMiddleware)
 
 # slowapi state + 429 handler. slowapi's handler is typed against its own
