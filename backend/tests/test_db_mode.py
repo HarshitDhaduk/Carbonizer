@@ -422,6 +422,13 @@ async def test_bank_only_imputes_energy_via_R1(
     snap = FootprintSnapshot(
         user_id=user.id,
         range="12w",
+        # NOT NULL columns mirror what /onboarding/estimate writes; the recompute
+        # reads them off `payload` but the schema still requires the scalar copy.
+        total_tco2e=prior_summary.total_tco2e,
+        delta_pct=prior_summary.delta_pct,
+        status=prior_summary.status,
+        health=prior_summary.health,
+        target_tco2e=prior_summary.target_tco2e,
         payload=prior_summary.model_dump(mode="json"),
         generated_at=datetime.now(UTC),
     )
