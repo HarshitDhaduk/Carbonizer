@@ -72,7 +72,12 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install
-        run: npm ci
+        # `npm install` instead of `npm ci` tolerates cross-platform lockfile
+        # drift on optional native deps (the @emnapi/* wasm shims have
+        # different version-resolution paths on Windows vs Linux). We commit
+        # a known-good lockfile generated locally; CI rebases the missing
+        # Linux-only optional entries on top.
+        run: npm install --no-audit --no-fund
 
       - name: npm audit (HIGH/CRITICAL only — Phase 2.9)
         run: npm audit --omit=dev --audit-level=high
