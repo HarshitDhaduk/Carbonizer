@@ -119,7 +119,10 @@ export function OnboardingFlow() {
   }
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-bg-base px-4 py-10">
+    <main
+      id="main"
+      className="flex min-h-dvh items-center justify-center bg-bg-base px-4 py-10"
+    >
       {!hydrated ? (
         <Loading label="Loading…" />
       ) : !user ? (

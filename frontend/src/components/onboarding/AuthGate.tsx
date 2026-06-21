@@ -76,16 +76,36 @@ export function AuthGate() {
         </p>
       </div>
 
-      <form onSubmit={onSubmit} className="glass space-y-3 rounded-card p-5">
+      <form
+        onSubmit={onSubmit}
+        className="glass space-y-3 rounded-card p-5"
+        aria-describedby={error ? "auth-error" : undefined}
+        noValidate
+      >
+        {/* Error summary at the top of the form — screen readers hear the
+            error before they walk back through the fields (WCAG 3.3.1). */}
+        {error && (
+          <div
+            id="auth-error"
+            role="alert"
+            className="border-danger/40 bg-danger/10 rounded-md border px-3 py-2 text-sm text-danger"
+          >
+            <a href={`#${mismatchField(error)}`} className="underline">
+              {error}
+            </a>
+          </div>
+        )}
+
         <div>
           <label htmlFor="email" className="mb-1 block text-xs text-text-lo">
-            Email
+            Email <span className="text-danger">*</span>
           </label>
           <input
             id="email"
             type="email"
             autoComplete="email"
             required
+            aria-required="true"
             value={email}
             onChange={(e) => {
               setEmail(e.target.value);
@@ -109,6 +129,8 @@ export function AuthGate() {
           show={showPassword}
           onToggle={() => setShowPassword((s) => !s)}
           minLength={isRegister ? 12 : undefined}
+          invalid={isPasswordError(error)}
+          describedBy={isPasswordError(error) ? "auth-error" : undefined}
         />
 
         {isRegister && (
@@ -125,13 +147,9 @@ export function AuthGate() {
             show={showPassword}
             onToggle={() => setShowPassword((s) => !s)}
             minLength={12}
+            invalid={isPasswordMismatch(error)}
+            describedBy={isPasswordMismatch(error) ? "auth-error" : undefined}
           />
-        )}
-
-        {error && (
-          <p role="alert" className="text-sm text-danger">
-            {error}
-          </p>
         )}
 
         <Button type="submit" size="lg" className="w-full" disabled={loading}>
@@ -157,6 +175,27 @@ export function AuthGate() {
   );
 }
 
+/** Map a humanised error message back to which field is at fault. Used to
+ * point the error-summary link at the right input. */
+function mismatchField(message: string): string {
+  const lower = message.toLowerCase();
+  if (lower.includes("don't match") || lower.includes("doesn't match"))
+    return "confirm";
+  if (lower.includes("password") || lower.includes("credentials"))
+    return "password";
+  return "email";
+}
+
+function isPasswordError(message: string | null): boolean {
+  if (!message) return false;
+  return mismatchField(message) === "password";
+}
+
+function isPasswordMismatch(message: string | null): boolean {
+  if (!message) return false;
+  return mismatchField(message) === "confirm";
+}
+
 function PasswordField({
   id,
   label,
@@ -167,6 +206,8 @@ function PasswordField({
   show,
   onToggle,
   minLength,
+  invalid,
+  describedBy,
 }: {
   id: string;
   label: string;
@@ -178,11 +219,13 @@ function PasswordField({
   onToggle: () => void;
   /** Skip minLength on login so existing short-password accounts still work. */
   minLength?: number | undefined;
+  invalid?: boolean;
+  describedBy?: string | undefined;
 }) {
   return (
     <div>
       <label htmlFor={id} className="mb-1 block text-xs text-text-lo">
-        {label}
+        {label} <span className="text-danger">*</span>
       </label>
       <div className="relative">
         <input
@@ -190,6 +233,9 @@ function PasswordField({
           type={show ? "text" : "password"}
           autoComplete={autoComplete}
           required
+          aria-required="true"
+          {...(invalid ? { "aria-invalid": true } : {})}
+          {...(describedBy ? { "aria-describedby": describedBy } : {})}
           {...(minLength !== undefined ? { minLength } : {})}
           value={value}
           onChange={(e) => onChange(e.target.value)}

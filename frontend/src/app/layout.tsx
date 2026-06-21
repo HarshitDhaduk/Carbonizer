@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import { QueryProvider } from "@/components/providers/QueryProvider";
+import { SkipLink } from "@/components/layout/SkipLink";
 import "./globals.css";
 
 // Display: geometric, confident (stand-in for Clash Display, docs §3.3).
@@ -44,6 +45,7 @@ export default function RootLayout({
       className={`${display.variable} ${sans.variable} ${mono.variable}`}
     >
       <body>
+        <SkipLink />
         <QueryProvider>{children}</QueryProvider>
       </body>
     </html>
