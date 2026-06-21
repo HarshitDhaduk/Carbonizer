@@ -29,6 +29,8 @@ dev = [
     "mypy==2.1.0",
     "types-passlib",
     "hypothesis==6.119.0",
+    "testcontainers[postgres]==4.9.0",
+    "psycopg[binary]==3.2.3",
 ]
 
 [tool.pytest.ini_options]
