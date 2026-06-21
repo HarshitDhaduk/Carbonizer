@@ -33,6 +33,7 @@ logger = logging.getLogger("carbonizer")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """ASGI lifespan — configures logging on start, disposes the DB pool on stop."""
     configure_logging()
     logger.info(
         "Starting %s (env=%s, use_db=%s)",
@@ -145,11 +146,13 @@ app.include_router(api_router, prefix=settings.api_v1_prefix)
 # alternative or contribute the patch upstream.
 @app.get("/metrics", include_in_schema=False)
 async def metrics() -> Response:
+    """Prometheus scrape endpoint — default registry (process / GC / FD gauges)."""
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/", tags=["root"])
 async def root() -> dict[str, str]:
+    """Root index — name, link to docs, and the v1 API prefix."""
     return {
         "name": settings.project_name,
         "docs": "/docs",

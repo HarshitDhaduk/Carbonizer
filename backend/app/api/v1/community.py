@@ -20,6 +20,7 @@ async def get_benchmark(
     db: AsyncSession | None = Depends(get_db),
     subject: str | None = Depends(get_optional_user),
 ) -> Benchmark:
+    """R4 — return the user's k-anonymised, DP-noised cohort benchmark."""
     # Cohort aggregates move on the order of hours; 5 minutes is comfortably
     # below the cohort recomputation cadence (docs/API-DESIGN.md §9).
     cache_private(response, max_age=300)

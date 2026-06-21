@@ -27,6 +27,9 @@ from app.models.enums import TripMode
 
 
 class RawTransaction(Base):
+    """Verbatim bank transaction row. Partitioned by month on ``booked_at`` so
+    retention drops are O(1) and indexed lookups stay sequential-fast."""
+
     __tablename__ = "raw_transactions"
     __table_args__ = (
         UniqueConstraint("user_id", "external_id", "booked_at", name="ux_txn_ext"),
@@ -53,6 +56,9 @@ class RawTransaction(Base):
 
 
 class RawTrip(Base):
+    """Verbatim telematics trip row. Same partitioning + idempotency contract
+    as ``RawTransaction``."""
+
     __tablename__ = "raw_trips"
     __table_args__ = (
         UniqueConstraint("user_id", "external_id", "started_at", name="ux_trip_ext"),
@@ -76,6 +82,9 @@ class RawTrip(Base):
 
 
 class RawEnergyRead(Base):
+    """Verbatim smart-meter reading. ``grid_intensity`` is captured at the
+    interval so a later DEFRA-factor change can't retroactively shift history."""
+
     __tablename__ = "raw_energy_reads"
     __table_args__ = (
         UniqueConstraint(

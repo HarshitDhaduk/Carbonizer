@@ -24,6 +24,7 @@ from app.schemas.recommendation import Nudge
 
 
 def seed_summary() -> FootprintSummary:
+    """Deterministic ``FootprintSummary`` fixture for seed-mode dashboards."""
     return FootprintSummary(
         total_tco2e=4.2,
         delta_pct=-8,
@@ -75,6 +76,7 @@ def seed_summary() -> FootprintSummary:
 
 
 def seed_nudges() -> list[Nudge]:
+    """Three illustrative nudges used in seed mode and when a user has none live."""
     return [
         Nudge(
             id="n-ev-offpeak",
@@ -111,6 +113,7 @@ def seed_nudges() -> list[Nudge]:
 
 
 def seed_benchmark() -> Benchmark:
+    """Deterministic ``Benchmark`` fixture for seed-mode community page."""
     return Benchmark(
         you_tco2e=4.2,
         average_tco2e=4.6,
@@ -121,6 +124,7 @@ def seed_benchmark() -> Benchmark:
 
 
 def seed_connections() -> list[DataConnection]:
+    """Three sample connections (bank/telematics/meter) for the seed-mode panel."""
     return [
         DataConnection(id="bank", label="Bank", status="connected", last_sync="2h ago"),
         DataConnection(

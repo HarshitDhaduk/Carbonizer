@@ -199,6 +199,7 @@ async def _seed() -> None:
 
 
 async def main() -> None:
+    """One-shot DB seeder — creates tables + demo user + footprint + cohort."""
     print(f"Seeding {settings.database_url} (use_db={settings.use_db})")
     await _create_tables()
     await _seed()

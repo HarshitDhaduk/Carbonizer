@@ -33,6 +33,7 @@ _demo_settings = PrivacySettingsOut(
 
 @router.get("/consents", response_model=list[ConsentOut])
 async def list_consents(_user: str = Depends(require_user)) -> list[ConsentOut]:
+    """List the user's active consents (one row per granted scope+purpose)."""
     now = datetime.now(UTC)
     return [
         ConsentOut(
@@ -48,6 +49,7 @@ async def list_consents(_user: str = Depends(require_user)) -> list[ConsentOut]:
 
 @router.get("/settings", response_model=PrivacySettingsOut)
 async def get_settings(_user: str = Depends(require_user)) -> PrivacySettingsOut:
+    """Return the user's current privacy settings."""
     return _demo_settings
 
 
@@ -55,6 +57,7 @@ async def get_settings(_user: str = Depends(require_user)) -> PrivacySettingsOut
 async def update_settings(
     patch: PrivacySettingsUpdate, _user: str = Depends(require_user)
 ) -> PrivacySettingsOut:
+    """Patch the user's privacy settings. Omitted fields are left unchanged."""
     data = _demo_settings.model_dump()
     data.update({k: v for k, v in patch.model_dump().items() if v is not None})
     return PrivacySettingsOut(**data)
@@ -185,6 +188,7 @@ async def cancel_erase(
     subject: str = Depends(require_user),
     db: AsyncSession | None = Depends(get_db),
 ) -> DsrJobOut:
+    """Cancel a pending erasure during its 48-h grace window."""
     if db is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

@@ -9,6 +9,8 @@ from app.schemas.common import CamelModel
 
 
 class ConsentOut(CamelModel):
+    """One granular consent record returned by ``GET /privacy/consents``."""
+
     id: str
     scope: str
     purpose: str
@@ -17,18 +19,24 @@ class ConsentOut(CamelModel):
 
 
 class PrivacySettingsOut(CamelModel):
+    """User's current privacy settings (location precision, retention, marketing)."""
+
     location_precision: LocPrecision
     retention_days: int
     marketing_opt_in: bool
 
 
 class PrivacySettingsUpdate(CamelModel):
+    """Partial-update body for ``PATCH /privacy/settings``. ``None`` leaves a field unchanged."""
+
     location_precision: LocPrecision | None = None
     retention_days: int | None = None
     marketing_opt_in: bool | None = None
 
 
 class DsrJobOut(CamelModel):
+    """Data-subject-request job summary (export or erase)."""
+
     id: str
     kind: str
     status: str

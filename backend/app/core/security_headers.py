@@ -46,6 +46,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
+        """Append HSTS / CSP / X-Frame-Options / Referrer-Policy to the response."""
         response = await call_next(request)
         headers = response.headers
 

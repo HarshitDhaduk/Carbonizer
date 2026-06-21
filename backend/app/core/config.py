@@ -23,6 +23,10 @@ class InsecureProductionConfigError(RuntimeError):
 
 
 class Settings(BaseSettings):
+    """Process-wide configuration. Loaded once at startup from `.env` +
+    environment variables. Hard-fails in production if any dev-default secret
+    leaks through (see ``_assert_no_defaults_in_production`` below)."""
+
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
@@ -90,10 +94,12 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins(self) -> list[str]:
+        """Parse the comma-separated CORS_ORIGINS env into a stripped list."""
         return [o.strip() for o in self.cors_origins_raw.split(",") if o.strip()]
 
     @property
     def is_production(self) -> bool:
+        """True when ENVIRONMENT is `production` or `prod` (case-insensitive)."""
         return self.environment.lower() in {"production", "prod"}
 
     @property
@@ -138,6 +144,7 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    """Cached settings singleton — re-reading env per request is wasted work."""
     return Settings()
 
 

@@ -33,6 +33,7 @@ async def get_summary(
     db: AsyncSession | None = Depends(get_db),
     subject: str | None = Depends(get_optional_user),
 ) -> FootprintSummary:
+    """Return the merged-precedence footprint summary for the active range."""
     # Per docs/API-DESIGN.md §9 — the dashboard's primary read is private to
     # the user and tolerates a minute of staleness (recompute runs on connect).
     cache_private(response, max_age=60)

@@ -22,6 +22,10 @@ from app.db.base import Base, TimestampMixin, uuid_pk
 
 
 class Cohort(Base, TimestampMixin):
+    """A k-anonymised peer group. Unique on (size band, income band, region);
+    populated by an offline job that ensures every cohort has ≥ k members
+    before any aggregate is released to the dashboard."""
+
     __tablename__ = "cohorts"
     __table_args__ = (
         UniqueConstraint(
@@ -39,6 +43,8 @@ class Cohort(Base, TimestampMixin):
 
 
 class UserCohort(Base):
+    """User ↔ cohort link table (composite PK on user_id)."""
+
     __tablename__ = "user_cohort"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -50,6 +56,9 @@ class UserCohort(Base):
 
 
 class Challenge(Base, TimestampMixin):
+    """A community-wide challenge (cycle-to-work month, etc). target_metric is
+    JSONB so per-challenge bookkeeping doesn't need a schema migration."""
+
     __tablename__ = "challenges"
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -62,6 +71,8 @@ class Challenge(Base, TimestampMixin):
 
 
 class ChallengeParticipant(Base):
+    """User ↔ challenge link with a participation timestamp and progress (0..1)."""
+
     __tablename__ = "challenge_participants"
 
     challenge_id: Mapped[uuid.UUID] = mapped_column(

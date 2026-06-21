@@ -34,3 +34,4 @@ yarn-error.log*
 # contents (4 lines of /// reference directives), and committing it
 # means `tsc --noEmit` works on a cold CI runner before `next lint`
 # or `next build` has had a chance to generate it.
+/coverage

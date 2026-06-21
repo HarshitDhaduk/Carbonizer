@@ -18,6 +18,7 @@ async def list_recommendations(
     db: AsyncSession | None = Depends(get_db),
     subject: str | None = Depends(get_optional_user),
 ) -> list[Nudge]:
+    """Active nudges for the user, ranked by `(carbon × money)` score."""
     return await dashboard.get_recommendations(db, subject)
 
 
@@ -27,6 +28,7 @@ async def act_on_recommendation(
     db: AsyncSession | None = Depends(get_db),
     subject: str | None = Depends(get_optional_user),
 ) -> NudgeActionResult:
+    """Mark a nudge as acted-upon and return the realised carbon saving."""
     nudges = await dashboard.get_recommendations(db, subject)
     match = next((n for n in nudges if n.id == rec_id), None)
     if match is None:
@@ -41,4 +43,5 @@ async def dismiss_recommendation(
     rec_id: str,
     _user: str | None = Depends(get_optional_user),
 ) -> NudgeActionResult:
+    """Dismiss a nudge — it won't be re-served in the same window."""
     return NudgeActionResult(id=rec_id, status="dismissed")

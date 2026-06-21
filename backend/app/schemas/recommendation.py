@@ -9,6 +9,8 @@ from app.schemas.common import CamelModel
 
 
 class Nudge(CamelModel):
+    """A served behavioural nudge — copy + estimated carbon and money saved."""
+
     id: str
     kind: NudgeKind
     title: str
@@ -21,6 +23,8 @@ class Nudge(CamelModel):
 
 
 class NudgeActionResult(CamelModel):
+    """Outcome of acting on / dismissing a nudge."""
+
     id: str
     status: str
     realized_saving_tco2e: float | None = None

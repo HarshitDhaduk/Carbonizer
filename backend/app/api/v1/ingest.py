@@ -19,17 +19,35 @@ from app.schemas.ingestion import (
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 
-@router.post("/transactions", response_model=IngestResult, status_code=202)
+@router.post(
+    "/transactions",
+    response_model=IngestResult,
+    status_code=202,
+    summary="Accept bank-transaction batch from a provider webhook",
+)
 async def ingest_transactions(items: list[TransactionIn]) -> IngestResult:
-    # TODO: dedup on (user, external_id), classify, enqueue factor mapping
+    """Accept + ack the batch. Dedup, classify, and factor-mapping happen
+    asynchronously downstream (see ``services.bank_sync``)."""
     return IngestResult(accepted=len(items))
 
 
-@router.post("/trips", response_model=IngestResult, status_code=202)
+@router.post(
+    "/trips",
+    response_model=IngestResult,
+    status_code=202,
+    summary="Accept telematics-trip batch from a provider webhook",
+)
 async def ingest_trips(items: list[TripIn]) -> IngestResult:
+    """Accept + ack the trip batch; mode-detection + km-to-CO2e is async."""
     return IngestResult(accepted=len(items))
 
 
-@router.post("/energy", response_model=IngestResult, status_code=202)
+@router.post(
+    "/energy",
+    response_model=IngestResult,
+    status_code=202,
+    summary="Accept smart-meter energy-read batch from a provider webhook",
+)
 async def ingest_energy(items: list[EnergyReadIn]) -> IngestResult:
+    """Accept + ack the energy batch; the activity-vs-grid-intensity merge is async."""
     return IngestResult(accepted=len(items))

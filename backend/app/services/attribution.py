@@ -43,6 +43,12 @@ def _elec_aggregate(reads: list[RawEnergyRead]) -> tuple[float, float]:
 async def energy_attribution(
     db: AsyncSession, user_id: uuid.UUID
 ) -> Attribution:
+    """R3 — return the user's behaviour-vs-grid energy decomposition.
+
+    Returns ``available=False`` when the meter doesn't have enough history to
+    split the period in two; the dashboard then hides the attribution panel
+    instead of presenting noise as signal.
+    """
     now = datetime.now(UTC)
     since = now - timedelta(days=WINDOW_DAYS + 1)
     res = await db.execute(

@@ -55,6 +55,9 @@ class AuditLog(Base):
 
 
 class IdempotencyKey(Base):
+    """Composite-PK (user, key) — lets clients replay write requests safely.
+    Tied to a single endpoint so a leaked key can't be reused elsewhere."""
+
     __tablename__ = "idempotency_keys"
 
     user_id: Mapped[uuid.UUID] = mapped_column(

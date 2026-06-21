@@ -37,6 +37,7 @@ class _JsonFormatter(logging.Formatter):
     _BASE_FIELDS = ("name", "module", "funcName", "lineno")
 
     def format(self, record: logging.LogRecord) -> str:
+        """Render the LogRecord as a single-line JSON string with request_id."""
         payload: dict[str, object] = {
             "ts": time.strftime(
                 "%Y-%m-%dT%H:%M:%SZ", time.gmtime(record.created)
@@ -70,6 +71,7 @@ def _want_json() -> bool:
 
 
 def configure_logging(level: int = logging.INFO) -> None:
+    """Idempotently install a stdout handler — JSON in prod, text in TTY dev."""
     handler = logging.StreamHandler(sys.stdout)
     if _want_json():
         handler.setFormatter(_JsonFormatter())

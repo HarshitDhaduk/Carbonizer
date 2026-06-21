@@ -18,6 +18,7 @@ _sessionmaker: async_sessionmaker[AsyncSession] | None = None
 
 
 def get_engine() -> AsyncEngine:
+    """Lazily create the async engine + sessionmaker on first access."""
     global _engine, _sessionmaker
     if _engine is None:
         # Phase 4.3 tuning. Defaults come from settings so deploys can override
@@ -50,6 +51,7 @@ async def get_db() -> AsyncIterator[AsyncSession | None]:
 
 
 async def dispose_engine() -> None:
+    """Close the connection pool — called from the FastAPI lifespan shutdown."""
     global _engine
     if _engine is not None:
         await _engine.dispose()

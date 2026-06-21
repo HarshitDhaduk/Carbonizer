@@ -11,6 +11,8 @@ from app.schemas.common import CamelModel
 
 
 class TransactionIn(CamelModel):
+    """One bank transaction posted to ``/ingest/transactions``."""
+
     external_id: str
     booked_at: datetime
     amount_minor: int
@@ -22,6 +24,8 @@ class TransactionIn(CamelModel):
 
 
 class TripIn(CamelModel):
+    """One detected trip posted to ``/ingest/trips`` (telematics SDK)."""
+
     external_id: str
     started_at: datetime
     ended_at: datetime
@@ -31,6 +35,8 @@ class TripIn(CamelModel):
 
 
 class EnergyReadIn(CamelModel):
+    """One smart-meter reading posted to ``/ingest/energy``."""
+
     external_id: str
     interval_start: datetime
     kwh: float
@@ -39,6 +45,8 @@ class EnergyReadIn(CamelModel):
 
 
 class IngestResult(CamelModel):
+    """Async-ingest ack: count accepted, count deduped, and any rejected ids."""
+
     accepted: int
     duplicates: int = 0
     rejected: list[str] = Field(default_factory=list)

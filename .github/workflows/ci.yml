@@ -39,6 +39,9 @@ jobs:
       - name: Mypy
         run: mypy app
 
+      - name: Interrogate (docstring coverage ≥ 75% on public surface)
+        run: interrogate app -c pyproject.toml
+
       - name: pip-audit (HIGH/CRITICAL only — Phase 2.9)
         run: |
           pip install pip-audit

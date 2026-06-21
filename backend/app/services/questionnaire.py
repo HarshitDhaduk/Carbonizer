@@ -106,6 +106,7 @@ def is_visible(q: Question, answers: dict[str, AnswerValue]) -> bool:
 
 
 def build_questionnaire() -> Questionnaire:
+    """Return the server-defined Day-0 questionnaire payload (current version)."""
     return Questionnaire(version=QUESTIONNAIRE_VERSION, questions=QUESTIONS)
 
 

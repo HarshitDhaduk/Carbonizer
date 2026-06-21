@@ -11,6 +11,8 @@ from app.schemas.common import CamelModel, to_camel
 
 
 class CategoryBreakdown(CamelModel):
+    """One row on the dashboard breakdown — method + confidence + trend."""
+
     category: Category
     tco2e: float
     delta_pct: float
@@ -36,6 +38,8 @@ class Attribution(CamelModel):
 
 
 class FootprintSummary(CamelModel):
+    """Dashboard summary — total + per-category breakdown + biome state."""
+
     total_tco2e: float
     delta_pct: float
     trend: Trend

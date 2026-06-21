@@ -76,6 +76,11 @@ def _relative_time(ts: datetime | None) -> str | None:
 async def get_footprint_summary(
     db: AsyncSession | None, range_: str = "12w", subject: str | None = None
 ) -> FootprintSummary:
+    """Return the cached snapshot for the resolved user, or seed fixtures.
+
+    Seed mode (db=None) and "user not found" both yield the deterministic
+    fixture summary so the dashboard contract holds even before USE_DB=true.
+    """
     if db is None:
         return seed.seed_summary()
     user_id = await _resolve_user_id(db, subject)
@@ -97,6 +102,8 @@ async def get_footprint_summary(
 async def get_recommendations(
     db: AsyncSession | None, subject: str | None = None
 ) -> list[Nudge]:
+    """Active nudges for the resolved user, ranked by `(carbon × money) score`.
+    Seed fixtures returned in seed mode or when the user has no live nudges."""
     if db is None:
         return seed.seed_nudges()
     user_id = await _resolve_user_id(db, subject)
@@ -132,6 +139,8 @@ async def get_recommendations(
 async def get_benchmark(
     db: AsyncSession | None, subject: str | None = None
 ) -> Benchmark:
+    """R4 — return the user's IPW-corrected, DP-noised cohort comparison.
+    k-anonymity hides cohort_size when the cohort is below threshold (k=50)."""
     if db is None:
         return seed.seed_benchmark()
     user_id = await _resolve_user_id(db, subject)
@@ -177,6 +186,9 @@ async def get_benchmark(
 async def get_connections(
     db: AsyncSession | None, subject: str | None = None
 ) -> list[DataConnection]:
+    """Return the user's connected sources with a friendly label + last-sync
+    relative time. Always returns the three rows (bank/telematics/meter) — a
+    disconnected source is shown as such, not omitted."""
     if db is None:
         return seed.seed_connections()
     user_id = await _resolve_user_id(db, subject)

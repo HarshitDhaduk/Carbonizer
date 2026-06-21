@@ -62,6 +62,7 @@ def health_for_total(total_tco2e: float) -> float:
 
 
 def status_for_health(health: float) -> BiomeStatus:
+    """Map a 0..1 health score to the BiomeStatus the planet renders."""
     if health >= 0.66:
         return BiomeStatus.thriving
     if health >= 0.45:

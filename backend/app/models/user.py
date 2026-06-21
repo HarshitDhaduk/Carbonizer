@@ -13,6 +13,9 @@ from app.models.enums import LocPrecision
 
 
 class User(Base, TimestampMixin):
+    """A registered account. Argon2id password hash + soft-delete via
+    ``deleted_at`` so the audit log can keep historical references."""
+
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -33,6 +36,9 @@ class User(Base, TimestampMixin):
 
 
 class PrivacySettings(Base, TimestampMixin):
+    """Per-user privacy choices (location precision, retention window, marketing
+    opt-in). One row per user; created alongside the User on register."""
+
     __tablename__ = "privacy_settings"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -48,6 +54,9 @@ class PrivacySettings(Base, TimestampMixin):
 
 
 class Consent(Base, TimestampMixin):
+    """Granular consent record — `scope` + `purpose` per provider.
+    Auditable via `granted_at` / `withdrawn_at` for GDPR Art. 7."""
+
     __tablename__ = "consents"
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -67,6 +76,9 @@ class Consent(Base, TimestampMixin):
 
 
 class Session(Base, TimestampMixin):
+    """Server-side handle for an issued refresh token. Lookup is by token hash
+    so a leaked DB row can't replay a session, and revocation is a row-update."""
+
     __tablename__ = "sessions"
 
     id: Mapped[uuid.UUID] = uuid_pk()

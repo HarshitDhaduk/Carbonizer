@@ -20,6 +20,8 @@ def to_camel(snake: str) -> str:
 
 
 class CamelModel(BaseModel):
+    """Base for every Carbonizer schema — emits camelCase on the wire."""
+
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,

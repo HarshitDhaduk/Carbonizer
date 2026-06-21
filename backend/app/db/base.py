@@ -14,12 +14,15 @@ class Base(DeclarativeBase):
 
 
 def uuid_pk() -> Mapped[uuid.UUID]:
+    """Standard primary-key column — app-generated UUID4 (swap for v7 in prod)."""
     # NOTE: app generates UUIDs (v4 here; swap for v7 generator in prod) so we
     # never depend on a server-side extension.
     return mapped_column(primary_key=True, default=uuid.uuid4)
 
 
 class TimestampMixin:
+    """Adds `created_at` + `updated_at` (server-side defaults, auto-touch on update)."""
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

@@ -21,6 +21,10 @@ from app.models.enums import ConnStatus, ProviderKind
 
 
 class Connection(Base, TimestampMixin):
+    """A user's link to a single provider account (bank/telematics/meter).
+    Unique on (user, provider, external_account_ref) so reconnecting the same
+    account upserts rather than duplicates."""
+
     __tablename__ = "connections"
     __table_args__ = (
         UniqueConstraint(

@@ -15,10 +15,13 @@ _pwd = CryptContext(schemes=["argon2"], deprecated="auto")
 
 
 def hash_password(plain: str) -> str:
+    """Hash a plaintext password with Argon2id (~50ms per call, memory-hard)."""
     return _pwd.hash(plain)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
+    """Constant-time check of ``plain`` against an Argon2id ``hashed`` value.
+    Returns False on malformed input rather than raising — auth flow expects bool."""
     try:
         return _pwd.verify(plain, hashed)
     except ValueError:
@@ -38,12 +41,14 @@ def _create_token(subject: str, ttl: timedelta, token_type: str) -> str:
 
 
 def create_access_token(subject: str) -> str:
+    """Issue a short-lived (15 min default) access JWT for the given user UUID."""
     return _create_token(
         subject, timedelta(minutes=settings.access_token_ttl_minutes), "access"
     )
 
 
 def create_refresh_token(subject: str) -> str:
+    """Issue a long-lived (30 day default) refresh JWT for the given user UUID."""
     return _create_token(
         subject, timedelta(days=settings.refresh_token_ttl_days), "refresh"
     )

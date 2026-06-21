@@ -29,6 +29,7 @@ router = APIRouter(tags=["health"])
     description="Cheap, no I/O. Returns 200 as long as the ASGI app is serving.",
 )
 async def healthz() -> dict[str, str]:
+    """Liveness probe — returns 200 + `status=ok` while the ASGI app is serving."""
     return {"status": "ok"}
 
 
@@ -43,6 +44,7 @@ async def healthz() -> dict[str, str]:
     ),
 )
 async def readyz(response: Response) -> dict[str, object]:
+    """Readiness probe — pings DB with `SELECT 1`; 503 on any failure."""
     db_ok: bool | str = "skipped"
     if settings.use_db:
         try:

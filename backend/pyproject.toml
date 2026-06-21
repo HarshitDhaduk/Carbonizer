@@ -33,6 +33,7 @@ dev = [
     "testcontainers[postgres]==4.9.0",
     "psycopg[binary]==3.2.3",
     "mutmut==3.6.0",
+    "interrogate==1.7.0",
 ]
 
 # Phase 3.4 — mutation testing. Run on a weekly schedule (see
@@ -102,6 +103,26 @@ max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["B011"]
+
+# Docstring-coverage gate. The public surface (api/ + services/ + schemas/ +
+# models/) is at 100% today; this floor lets us add private helpers without
+# triggering a doc-debt rabbit-hole. Private helpers, tests, and one-off
+# migrations are excluded so the metric tracks *user-visible code* only.
+[tool.interrogate]
+fail-under = 75
+ignore-init-method = true
+ignore-init-module = true
+ignore-magic = true
+ignore-semiprivate = true
+ignore-private = true
+ignore-property-decorators = false
+ignore-module = false
+ignore-nested-functions = true
+ignore-setters = true
+exclude = ["alembic", "tests", ".venv"]
+verbose = 1
+omit-covered-files = true
+quiet = false
 
 [tool.mypy]
 python_version = "3.11"

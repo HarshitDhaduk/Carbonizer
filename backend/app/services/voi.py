@@ -53,6 +53,7 @@ def _voi_order(questions: list[Question]) -> list[Question]:
     result: list[Question] = []
 
     def place(q: Question) -> None:
+        """Insert q into the ordered output, recursing on its visible-if parent first."""
         if q.id in placed:
             return
         parent_id = q.visible_if.question_id if q.visible_if else None

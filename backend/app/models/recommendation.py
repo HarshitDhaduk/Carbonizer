@@ -22,6 +22,8 @@ from app.models.enums import NudgeEffort, NudgeKind, NudgeStatus
 
 
 class Recommendation(Base, TimestampMixin):
+    """A nudge served to a user. Ranked by ``score`` (carbon × money × ease)."""
+
     __tablename__ = "recommendations"
     __table_args__ = (Index("ix_rec_active", "user_id", "score"),)
 
@@ -42,6 +44,8 @@ class Recommendation(Base, TimestampMixin):
 
 
 class RecommendationAction(Base, TimestampMixin):
+    """One acted-upon or dismissed nudge. Append-only; feeds future ranking."""
+
     __tablename__ = "recommendation_actions"
 
     id: Mapped[uuid.UUID] = uuid_pk()

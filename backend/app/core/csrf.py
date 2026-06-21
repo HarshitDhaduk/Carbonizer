@@ -56,6 +56,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
+        """Enforce CSRF double-submit on cookie-authenticated state changes."""
         if request.method in _SAFE_METHODS:
             return await call_next(request)
         if any(request.url.path.startswith(p) for p in _EXEMPT_PATHS):

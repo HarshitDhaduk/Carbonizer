@@ -11,6 +11,8 @@ AnswerValue = int | str
 
 
 class QuestionOption(CamelModel):
+    """One selectable option for a `type=single` question."""
+
     value: str
     label: str
 
@@ -30,6 +32,8 @@ class VisibleIf(CamelModel):
 
 
 class Question(CamelModel):
+    """A single Day-0 questionnaire item — dependency-aware via `visible_if`."""
+
     id: str
     type: Literal["single", "number"]
     label: str
@@ -47,6 +51,8 @@ class Question(CamelModel):
 
 
 class Questionnaire(CamelModel):
+    """Server-defined questionnaire payload — bumps `version` on any change."""
+
     version: int
     questions: list[Question]
 
@@ -65,6 +71,8 @@ class OnboardingProgress(CamelModel):
 
 
 class OnboardingProfileOut(CamelModel):
+    """Resume payload — current status, step, and saved answers (if any)."""
+
     status: Literal["in_progress", "completed"]
     completed: bool
     current_step: int

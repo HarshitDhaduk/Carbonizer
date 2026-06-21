@@ -6,6 +6,8 @@ from app.schemas.common import CamelModel
 
 
 class Benchmark(CamelModel):
+    """R4 cohort comparison — IPW-corrected, DP-noised, k-anonymity-gated."""
+
     you_tco2e: float
     average_tco2e: float
     top_tco2e: float

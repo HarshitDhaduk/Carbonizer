@@ -112,6 +112,7 @@ async def list_connections(
     db: AsyncSession | None = Depends(get_db),
     subject: str | None = Depends(get_optional_user),
 ) -> list[DataConnection]:
+    """List the three provider connections (bank/telematics/meter) for this user."""
     return await dashboard.get_connections(db, subject)
 
 
@@ -148,6 +149,7 @@ async def sync_connection(
     subject: str = Depends(require_user),
     db: AsyncSession | None = Depends(get_db),
 ) -> ConnectResult:
+    """Re-pull data for an already-connected provider and recompute the footprint."""
     if provider not in _WIRED:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,

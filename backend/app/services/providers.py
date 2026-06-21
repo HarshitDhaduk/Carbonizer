@@ -25,6 +25,8 @@ WINDOW_DAYS = 84  # ~12 weeks, matching the "12w" snapshot range
 
 @dataclass(frozen=True)
 class ProviderTxn:
+    """One bank transaction as the ingest pipeline expects it (provider-neutral)."""
+
     external_id: str
     booked_at: datetime
     amount_minor: int  # pence, positive = outgoing spend
@@ -35,13 +37,21 @@ class ProviderTxn:
 
 
 class BankProvider(Protocol):
+    """Anything that can yield a user's recent bank transactions — sandbox or
+    real (GoCardless, TrueLayer, Plaid). The recompute pipeline doesn't care
+    which."""
+
     async def fetch_transactions(
         self, user_id: uuid.UUID, now: datetime
-    ) -> list[ProviderTxn]: ...
+    ) -> list[ProviderTxn]:
+        """Return the user's transactions for the active window."""
+        ...
 
 
 @dataclass(frozen=True)
 class EnergyRead:
+    """One half-hour or daily energy reading from a smart meter."""
+
     external_id: str
     interval_start: datetime
     kwh: float
@@ -50,9 +60,14 @@ class EnergyRead:
 
 
 class MeterProvider(Protocol):
+    """Anything that can yield a user's smart-meter reads — sandbox or
+    real (Octopus OAuth, DCC, n3rgy)."""
+
     async def fetch_energy(
         self, user_id: uuid.UUID, now: datetime
-    ) -> list[EnergyRead]: ...
+    ) -> list[EnergyRead]:
+        """Return the user's energy readings for the active window."""
+        ...
 
 
 # (mcc, merchants, weekly cadence, £ min, £ max)
@@ -78,6 +93,7 @@ class SandboxBankProvider:
     async def fetch_transactions(
         self, user_id: uuid.UUID, now: datetime
     ) -> list[ProviderTxn]:
+        """Yield a deterministic-per-user list of fake transactions over the window."""
         rng = random.Random(int(user_id.hex[:12], 16))  # stable per user
         weeks = WINDOW_DAYS // 7
         txns: list[ProviderTxn] = []
@@ -124,6 +140,7 @@ class SandboxMeterProvider:
     async def fetch_energy(
         self, user_id: uuid.UUID, now: datetime
     ) -> list[EnergyRead]:
+        """Yield a deterministic-per-user list of daily electricity + gas reads."""
         rng = random.Random(int(user_id.hex[12:24], 16))  # distinct from bank seed
         reads: list[EnergyRead] = []
         for day in range(WINDOW_DAYS):
@@ -147,8 +164,10 @@ _METER_PROVIDERS: dict[str, MeterProvider] = {"sandbox": SandboxMeterProvider()}
 
 
 def get_bank_provider(name: str = "sandbox") -> BankProvider:
+    """Look up a registered bank provider; falls back to ``sandbox``."""
     return _BANK_PROVIDERS.get(name, _BANK_PROVIDERS["sandbox"])
 
 
 def get_meter_provider(name: str = "sandbox") -> MeterProvider:
+    """Look up a registered meter provider; falls back to ``sandbox``."""
     return _METER_PROVIDERS.get(name, _METER_PROVIDERS["sandbox"])

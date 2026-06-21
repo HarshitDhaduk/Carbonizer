@@ -30,11 +30,14 @@ _HEADER = "X-Request-Id"
 
 
 class RequestIdMiddleware(BaseHTTPMiddleware):
+    """Propagate or mint an ``X-Request-Id`` per request — see module docstring."""
+
     async def dispatch(
         self,
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
+        """Bind X-Request-Id to the contextvar + echo it back on the response."""
         rid = request.headers.get(_HEADER) or uuid.uuid4().hex
         token = request_id_var.set(rid)
         try:

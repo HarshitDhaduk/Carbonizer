@@ -34,6 +34,9 @@ _WEAK_PASSWORDS: frozenset[str] = frozenset(
 
 
 class RegisterRequest(CamelModel):
+    """`POST /auth/register` body. 12-char password floor + weak-list check
+    enforced in the validator below."""
+
     email: str
     # 12-char minimum follows current NIST 800-63B guidance (length over
     # complexity rules).
@@ -61,12 +64,15 @@ class RegisterRequest(CamelModel):
 
 
 class TokenResponse(CamelModel):
+    """Auth response body — back-compat for non-cookie clients (SPA uses cookies)."""
+
     access_token: str
     token_type: str = "bearer"
     expires_in: int
 
 
 class UserOut(CamelModel):
+    """Public profile of the signed-in user (returned by ``GET /auth/me``)."""
     id: str
     email: str
     region: str

@@ -79,6 +79,7 @@ async def register(
     body: RegisterRequest,
     db: AsyncSession | None = Depends(get_db),
 ) -> TokenResponse:
+    """Create a new user account + session cookies in one round-trip."""
     if db is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -131,6 +132,7 @@ async def login(
     form: OAuth2PasswordRequestForm = Depends(OAuth2PasswordRequestForm),
     db: AsyncSession | None = Depends(get_db),
 ) -> TokenResponse:
+    """Verify password (Argon2id), issue session cookies, return access JWT."""
     email = form.username.strip().lower()
 
     # seed mode — validate against demo credentials
@@ -268,6 +270,7 @@ async def me(
     subject: str = Depends(require_user),
     db: AsyncSession | None = Depends(get_db),
 ) -> UserOut:
+    """Return the currently authenticated user's public profile."""
     # seed-mode / demo subject
     if db is None or subject == DEMO_USER_ID:
         return UserOut(

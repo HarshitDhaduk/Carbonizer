@@ -18,6 +18,8 @@ ConnectionStatus = Literal[
 
 
 class DataConnection(CamelModel):
+    """One provider connection card displayed on the dashboard."""
+
     id: ConnectionId
     label: str
     status: ConnectionStatus
@@ -25,6 +27,8 @@ class DataConnection(CamelModel):
 
 
 class LinkResponse(CamelModel):
+    """OAuth ``/link`` response — the provider URL to redirect to + a state token."""
+
     authorize_url: str
     state: str
 

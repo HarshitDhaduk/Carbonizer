@@ -120,6 +120,7 @@ async def get_profile(
     subject: str = Depends(require_user),
     db: AsyncSession | None = Depends(get_db),
 ) -> OnboardingProfileOut:
+    """Return the user's saved onboarding answers + current step for resume."""
     db = _require_db(db)
     uid = _user_uuid(subject)
     res = await db.execute(
@@ -181,6 +182,7 @@ async def post_estimate(
     subject: str = Depends(require_user),
     db: AsyncSession | None = Depends(get_db),
 ) -> FootprintSummary:
+    """Submit Day-0 answers → compute + persist the estimated FootprintSnapshot."""
     db = _require_db(db)
     uid = _user_uuid(subject)
 
