@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy import (
     Date,
@@ -82,7 +83,7 @@ class CategoryRollup(Base, TimestampMixin):
     granularity: Mapped[str] = mapped_column(String, primary_key=True)  # week | month
     bucket_start: Mapped[date] = mapped_column(Date, primary_key=True)
     co2e_kg: Mapped[float] = mapped_column(Float, nullable=False)
-    method_mix: Mapped[dict] = mapped_column(JSONB, default=dict)
+    method_mix: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
 
 
 class FootprintSnapshot(Base):
@@ -101,7 +102,7 @@ class FootprintSnapshot(Base):
     status: Mapped[BiomeStatus] = mapped_column(default=BiomeStatus.plateau)
     health: Mapped[float] = mapped_column(Numeric(4, 3), default=0.5)
     target_tco2e: Mapped[float | None] = mapped_column(Numeric(8, 3))
-    payload: Mapped[dict] = mapped_column(JSONB, default=dict)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     generated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow
     )

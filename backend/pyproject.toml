@@ -87,6 +87,7 @@ select = [
     "SIM",   # simplify
     "ASYNC", # async correctness
     "RUF",   # ruff-specific
+    "C901",  # cyclomatic complexity — Phase 6.4 acceptance (< 10 per function)
 ]
 ignore = [
     "E501",  # line too long (sometimes unavoidable in URLs / docstrings)
@@ -96,17 +97,18 @@ ignore = [
     "UP042",  # str-enum migration deferred — risks subtle behavior changes
 ]
 
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["B011"]
 
 [tool.mypy]
 python_version = "3.11"
 plugins = ["pydantic.mypy"]
-# Pragmatic start — strict_optional + warnings without full --strict yet.
-# Phase 6 tightens to --strict once refactors land.
-strict_optional = true
-disallow_untyped_defs = false
-warn_return_any = true
+# Phase 6.4 acceptance — `--strict` is the gate. Equivalent flags expanded
+# inline so we can selectively relax one without flipping `strict` back off.
+strict = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 ignore_missing_imports = true

@@ -17,7 +17,16 @@ from app.services import attribution, dashboard
 router = APIRouter(prefix="/footprint", tags=["footprint"])
 
 
-@router.get("/summary", response_model=FootprintSummary)
+@router.get(
+    "/summary",
+    response_model=FootprintSummary,
+    summary="Dashboard footprint summary",
+    description=(
+        "Returns the merged-precedence footprint (activity > spend > "
+        "imputed > estimated) for the signed-in user, or fixture data "
+        "for an anonymous caller. Cached `private, max-age=60`."
+    ),
+)
 async def get_summary(
     response: Response,
     range: Annotated[str, Query(pattern="^(12w|6m|1y)$")] = "12w",
@@ -30,7 +39,11 @@ async def get_summary(
     return await dashboard.get_footprint_summary(db, range, subject)
 
 
-@router.get("/attribution", response_model=Attribution)
+@router.get(
+    "/attribution",
+    response_model=Attribution,
+    summary="R3 — split recent energy delta into behaviour vs grid",
+)
 async def get_attribution(
     subject: str = Depends(require_user),
     db: AsyncSession | None = Depends(get_db),

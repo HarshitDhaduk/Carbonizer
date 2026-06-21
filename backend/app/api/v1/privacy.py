@@ -60,7 +60,12 @@ async def update_settings(
     return PrivacySettingsOut(**data)
 
 
-@router.post("/export", response_model=DsrJobOut, status_code=202)
+@router.post(
+    "/export",
+    response_model=DsrJobOut,
+    status_code=202,
+    summary="Request a GDPR Art. 15 / DPDP §11 data export",
+)
 async def request_export(
     request: Request,
     subject: str = Depends(require_user),
@@ -90,7 +95,10 @@ async def request_export(
     return _job_out(job)
 
 
-@router.get("/export/{job_id}/download")
+@router.get(
+    "/export/{job_id}/download",
+    summary="Stream the assembled export bundle as JSON",
+)
 async def download_export(
     request: Request,
     job_id: uuid.UUID,
@@ -131,7 +139,12 @@ async def download_export(
     )
 
 
-@router.post("/erase", response_model=DsrJobOut, status_code=202)
+@router.post(
+    "/erase",
+    response_model=DsrJobOut,
+    status_code=202,
+    summary="Schedule data erasure (48-hour grace window)",
+)
 async def request_erase(
     request: Request,
     subject: str = Depends(require_user),
@@ -161,7 +174,11 @@ async def request_erase(
     return _job_out(job)
 
 
-@router.post("/erase/{job_id}/cancel", response_model=DsrJobOut)
+@router.post(
+    "/erase/{job_id}/cancel",
+    response_model=DsrJobOut,
+    summary="Cancel a pending erasure (during the grace window)",
+)
 async def cancel_erase(
     request: Request,
     job_id: uuid.UUID,

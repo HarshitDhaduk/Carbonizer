@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from pydantic import ConfigDict
+
 from app.models.enums import BiomeStatus, CalcMethod, Category, Trend
-from app.schemas.common import CamelModel
+from app.schemas.common import CamelModel, to_camel
 
 
 class CategoryBreakdown(CamelModel):
@@ -44,3 +46,35 @@ class FootprintSummary(CamelModel):
     # extra context (TS client ignores unknown fields)
     range: str = "12w"
     generated_at: datetime | None = None
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "totalTco2e": 4.2,
+                    "deltaPct": -8.0,
+                    "trend": "down",
+                    "status": "improving",
+                    "targetTco2e": 3.5,
+                    "health": 0.72,
+                    "categories": [
+                        {
+                            "category": "transport",
+                            "tco2e": 1.6,
+                            "deltaPct": -12.0,
+                            "trend": "down",
+                            "method": "spend",
+                            "spark": [1.9, 1.85, 1.8, 1.75, 1.7, 1.6],
+                            "confidence": 0.8,
+                            "imputed": False,
+                        }
+                    ],
+                    "range": "12w",
+                    "generatedAt": "2026-06-21T08:30:00Z",
+                }
+            ],
+        },
+    )

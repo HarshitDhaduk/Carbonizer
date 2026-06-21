@@ -44,14 +44,46 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info("Shutdown complete")
 
 
+_TAG_METADATA = [
+    {"name": "auth", "description": "Sign in / register / refresh / logout. JWT lives in HttpOnly cookies (ADR-0003)."},
+    {"name": "onboarding", "description": "Server-defined questionnaire + Day-0 estimator + autosave (ADR-0001)."},
+    {"name": "footprint", "description": "Dashboard summary + R3 behavioural-vs-grid attribution."},
+    {"name": "recommendations", "description": "Behavioural nudges, ranked by carbon x money savings."},
+    {"name": "community", "description": "k-anonymised cohort benchmarks with IPW + Laplace DP (R4)."},
+    {"name": "connections", "description": "Bank / telematics / meter link + sync + disconnect (sandbox today)."},
+    {"name": "ingest", "description": "Provider sync surfaces — exposed for tooling, called by `connections`."},
+    {"name": "privacy", "description": "GDPR / DPDP data-rights handlers: export, erase with 48-h grace."},
+    {"name": "health", "description": "Liveness probe (intentionally cheap, no DB ping)."},
+]
+
 app = FastAPI(
     title=settings.project_name,
     version="0.1.0",
+    summary="Personal carbon tracking + data-rights API.",
     description=(
-        "Personal carbon tracking API. Automated ingestion (Open Banking, "
-        "telematics, smart meter), CO2e accounting, behavioral nudges, and "
-        "privacy-first data rights. See docs/API-DESIGN.md."
+        "**Carbonizer** turns connected bank / telematics / smart-meter data "
+        "into a CO2e footprint with measured confidence, plus the behavioural "
+        "nudges that shrink it.\n\n"
+        "Highlights:\n\n"
+        "- **HttpOnly cookies** for auth — XSS can't lift the session (see "
+        "[ADR-0003](https://github.com/HarshitDhaduk/Carbonizer/blob/main/docs/adr/0003-jwt-in-cookies.md)). "
+        "Bearer is still accepted for tooling and Swagger.\n"
+        "- **Server-defined questionnaire** ([ADR-0001](https://github.com/HarshitDhaduk/Carbonizer/blob/main/docs/adr/0001-server-defined-questionnaire.md)) "
+        "with ETag + `Cache-Control: public, max-age=3600, immutable`.\n"
+        "- **R0/R1/R2/R4** ship as transparent heuristics with an ML seam "
+        "([ADR-0002](https://github.com/HarshitDhaduk/Carbonizer/blob/main/docs/adr/0002-heuristics-with-ml-seam.md)).\n"
+        "- **Partitioned `raw_*` tables** for retention + scan bounds "
+        "([ADR-0004](https://github.com/HarshitDhaduk/Carbonizer/blob/main/docs/adr/0004-partition-raw-tables.md)).\n\n"
+        "See [`docs/API-DESIGN.md`](https://github.com/HarshitDhaduk/Carbonizer/blob/main/docs/API-DESIGN.md) "
+        "for the full contract, [`docs/SECURITY-REVIEW.md`](https://github.com/HarshitDhaduk/Carbonizer/blob/main/docs/SECURITY-REVIEW.md) "
+        "for the OWASP self-review."
     ),
+    contact={
+        "name": "Carbonizer",
+        "url": "https://github.com/HarshitDhaduk/Carbonizer",
+    },
+    license_info={"name": "MIT"},
+    openapi_tags=_TAG_METADATA,
     openapi_url=f"{settings.api_v1_prefix}/openapi.json",
     docs_url="/docs",
     redoc_url="/redoc",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     DateTime,
@@ -57,7 +58,7 @@ class Challenge(Base, TimestampMixin):
     description: Mapped[str | None] = mapped_column(String)
     starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    target_metric: Mapped[dict] = mapped_column(JSONB, default=dict)
+    target_metric: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
 
 
 class ChallengeParticipant(Base):

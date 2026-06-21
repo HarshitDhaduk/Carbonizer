@@ -103,7 +103,11 @@ async def _connect_and_sync(
     )
 
 
-@router.get("", response_model=list[DataConnection])
+@router.get(
+    "",
+    response_model=list[DataConnection],
+    summary="List the user's connected sources",
+)
 async def list_connections(
     db: AsyncSession | None = Depends(get_db),
     subject: str | None = Depends(get_optional_user),
@@ -111,7 +115,11 @@ async def list_connections(
     return await dashboard.get_connections(db, subject)
 
 
-@router.post("/{provider}/link", response_model=ConnectResult)
+@router.post(
+    "/{provider}/link",
+    response_model=ConnectResult,
+    summary="Link a sandbox source + sync + recompute",
+)
 async def link_connection(
     request: Request,
     provider: ConnectionId,
@@ -129,7 +137,11 @@ async def link_connection(
     return await _connect_and_sync(db, _user_uuid(subject), _WIRED[provider], request)
 
 
-@router.post("/{provider}/sync", response_model=ConnectResult)
+@router.post(
+    "/{provider}/sync",
+    response_model=ConnectResult,
+    summary="Re-pull from the provider + recompute",
+)
 async def sync_connection(
     request: Request,
     provider: ConnectionId,
@@ -156,7 +168,7 @@ async def sync_connection(
     return await _connect_and_sync(db, uid, kind, request)
 
 
-@router.delete("/{provider}")
+@router.delete("/{provider}", summary="Disconnect a source + purge its raw data")
 async def disconnect(
     request: Request,
     provider: ConnectionId,

@@ -60,7 +60,17 @@ def _token_response(subject: str) -> TokenResponse:
 
 
 @router.post(
-    "/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED
+    "/register",
+    response_model=TokenResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new account",
+    description=(
+        "Creates a User + PrivacySettings row, hashes the password with "
+        "Argon2id, and sets the `cb_access` / `cb_refresh` / `cb_csrf` "
+        "session cookies (see ADR-0003). Returns the access JWT in the "
+        "body as a back-compat for machine clients; the SPA ignores it "
+        "and relies on the cookie. Rate-limited to 3/hour per IP."
+    ),
 )
 @limiter.limit("3/hour")
 async def register(
@@ -103,7 +113,17 @@ async def register(
     return _token_response(str(user.id))
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    summary="Sign in (OAuth2 password grant)",
+    description=(
+        "Verifies an Argon2id password hash and sets the session cookie "
+        "trio. Rate-limited to 5/minute per IP; on credential-stuffing "
+        "patterns the email-scoped limiter kicks in too. Failed attempts "
+        "are written to the audit log."
+    ),
+)
 @limiter.limit("5/minute")
 async def login(
     request: Request,
@@ -149,7 +169,11 @@ async def login(
     return _token_response(str(user.id))
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post(
+    "/refresh",
+    response_model=TokenResponse,
+    summary="Rotate the access + CSRF cookies",
+)
 async def refresh(request: Request, response: Response) -> TokenResponse:
     """Rotate the access + CSRF cookies using the refresh JWT.
 
@@ -174,7 +198,11 @@ async def refresh(request: Request, response: Response) -> TokenResponse:
     return _token_response(subject)
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Clear the session cookies",
+)
 async def logout(
     request: Request,
     response: Response,
@@ -205,7 +233,11 @@ async def logout(
     return response
 
 
-@router.get("/csrf", status_code=status.HTTP_204_NO_CONTENT)
+@router.get(
+    "/csrf",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Lazily issue a CSRF cookie",
+)
 async def issue_csrf(request: Request, response: Response) -> Response:
     """Set a fresh ``cb_csrf`` cookie if the caller doesn't already have one.
 
@@ -227,7 +259,11 @@ async def issue_csrf(request: Request, response: Response) -> Response:
     return response
 
 
-@router.get("/me", response_model=UserOut)
+@router.get(
+    "/me",
+    response_model=UserOut,
+    summary="Profile of the currently-signed-in user",
+)
 async def me(
     subject: str = Depends(require_user),
     db: AsyncSession | None = Depends(get_db),

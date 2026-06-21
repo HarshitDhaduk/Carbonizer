@@ -86,7 +86,18 @@ async def _get_or_create_profile(
     return profile
 
 
-@router.get("/questions", response_model=Questionnaire)
+@router.get(
+    "/questions",
+    response_model=Questionnaire,
+    summary="Server-defined questionnaire (ADR-0001)",
+    description=(
+        "The questionnaire is the only place a Day-0 footprint can come "
+        "from. Client renders inputs verbatim from this list; the "
+        "estimator consumes the same list. Cached "
+        "`public, max-age=3600, immutable` + ETag keyed on "
+        "`QUESTIONNAIRE_VERSION`."
+    ),
+)
 async def get_questions(request: Request, response: Response) -> Questionnaire:
     """Server-defined questionnaire — the client renders from this.
 
@@ -100,7 +111,11 @@ async def get_questions(request: Request, response: Response) -> Questionnaire:
     return estimator.build_questionnaire()
 
 
-@router.get("/profile", response_model=OnboardingProfileOut)
+@router.get(
+    "/profile",
+    response_model=OnboardingProfileOut,
+    summary="Current onboarding state (for resume)",
+)
 async def get_profile(
     subject: str = Depends(require_user),
     db: AsyncSession | None = Depends(get_db),
@@ -123,7 +138,12 @@ async def get_profile(
     )
 
 
-@router.put("/progress", response_model=OnboardingProfileOut)
+@router.put(
+    "/progress",
+    response_model=OnboardingProfileOut,
+    summary="Autosave partial onboarding answers",
+    description="Debounced ~500 ms client-side, rate-limited 120/minute server-side.",
+)
 @limiter.limit("120/minute")
 async def save_progress(
     request: Request,
@@ -151,7 +171,11 @@ async def save_progress(
     )
 
 
-@router.post("/estimate", response_model=FootprintSummary)
+@router.post(
+    "/estimate",
+    response_model=FootprintSummary,
+    summary="Submit answers → Day-0 footprint estimate",
+)
 async def post_estimate(
     body: OnboardingAnswers,
     subject: str = Depends(require_user),
