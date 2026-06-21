@@ -25,9 +25,25 @@ import type {
   Questionnaire,
 } from "./types";
 
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1"
-).replace(/\/$/, "");
+/** Resolve the API base URL.
+ *
+ * In the browser we ALWAYS prefer the same-origin path `/api/v1`. The deploy
+ * proxies this through to the backend via a host-side rewrite (Vercel:
+ * frontend/vercel.json; any reverse proxy works the same way). Same-origin
+ * means cookies are first-party — third-party-cookie blockers (Safari ITP,
+ * Brave, Firefox-strict) never block them.
+ *
+ * SSR (server components / Node-side) doesn't have a "current origin" to
+ * relative-resolve against, so we honor `NEXT_PUBLIC_API_BASE_URL` there,
+ * falling back to localhost for local dev.
+ */
+function resolveApiBase(): string {
+  if (typeof window !== "undefined") return "/api/v1";
+  const env = process.env.NEXT_PUBLIC_API_BASE_URL;
+  return (env ?? "http://127.0.0.1:8000/api/v1").replace(/\/$/, "");
+}
+
+const API_BASE = resolveApiBase();
 
 const CSRF_COOKIE = "cb_csrf";
 
