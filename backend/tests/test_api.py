@@ -304,3 +304,124 @@ async def test_estimate_needs_db_in_seed_mode(
         json={"answers": {"householdSize": 2}},
     )
     assert resp.status_code == 503
+
+
+# --- Phase 2: security ------------------------------------------------------
+
+
+async def test_security_headers_present(
+    client: AsyncClient, api_prefix: str
+) -> None:
+    """SecurityHeadersMiddleware applies the defensive set to every response."""
+    resp = await client.get(f"{api_prefix}/healthz")
+    h = resp.headers
+    assert h["x-content-type-options"] == "nosniff"
+    assert h["x-frame-options"] == "DENY"
+    assert h["referrer-policy"] == "strict-origin-when-cross-origin"
+    assert "geolocation=()" in h["permissions-policy"]
+    assert "default-src 'none'" in h["content-security-policy"]
+    # HSTS only in production
+    assert "strict-transport-security" not in h
+
+
+def test_password_policy_min_length() -> None:
+    from app.schemas.auth import RegisterRequest
+
+    try:
+        RegisterRequest(email="a@b.com", password="short")
+    except Exception as e:
+        assert "12" in str(e) or "least" in str(e).lower()
+    else:  # pragma: no cover
+        raise AssertionError("min-length validator did not fire")
+
+
+def test_password_policy_rejects_weak() -> None:
+    from pydantic import ValidationError
+
+    from app.schemas.auth import RegisterRequest
+
+    for pw in ("password123!", "letmein-now-1", "Carbonizer123"):
+        try:
+            RegisterRequest(email="alice@example.com", password=pw)
+        except ValidationError:
+            pass
+        else:  # pragma: no cover
+            raise AssertionError(f"weak password should be rejected: {pw}")
+
+
+def test_password_policy_rejects_email_in_password() -> None:
+    from pydantic import ValidationError
+
+    from app.schemas.auth import RegisterRequest
+
+    try:
+        RegisterRequest(email="alice@example.com", password="alice12345xyz")
+    except ValidationError as e:
+        assert "email" in str(e).lower()
+    else:  # pragma: no cover
+        raise AssertionError("email-in-password should be rejected")
+
+
+def test_password_policy_accepts_strong() -> None:
+    from app.schemas.auth import RegisterRequest
+
+    # 12+ chars, mix of letters and digits, no email overlap, not in weak list
+    req = RegisterRequest(email="alice@example.com", password="r4nd0m-words-xyz")
+    assert req.password == "r4nd0m-words-xyz"
+
+
+def test_production_hard_fails_on_default_secret() -> None:
+    """Phase 2.3 — booting prod with a default secret must abort."""
+    from app.core.config import (
+        DEFAULT_SECRET_KEY,
+        InsecureProductionConfigError,
+        Settings,
+    )
+
+    try:
+        Settings(
+            environment="production",
+            secret_key=DEFAULT_SECRET_KEY,
+            demo_password="real-not-default",
+            database_url="postgresql+asyncpg://u:p@db/x",
+        )
+    except InsecureProductionConfigError as e:
+        assert "SECRET_KEY" in str(e)
+    else:  # pragma: no cover
+        raise AssertionError("default SECRET_KEY in production must raise")
+
+
+def test_production_accepts_real_secret() -> None:
+    from app.core.config import Settings
+
+    s = Settings(
+        environment="production",
+        secret_key="abc123-real-secret-that-is-long-enough",
+        demo_password="real-demo-pw-not-default",
+        database_url="postgresql+asyncpg://u:p@db/x",
+    )
+    assert s.is_production
+
+
+async def test_login_rate_limit_fires(
+    client: AsyncClient, api_prefix: str, with_rate_limit: None
+) -> None:
+    """6th login attempt within a minute → 429 with Retry-After."""
+    last = None
+    for _ in range(6):
+        last = await client.post(
+            f"{api_prefix}/auth/login",
+            data={"username": "nobody@example.com", "password": "wrongpwd"},
+        )
+    assert last is not None
+    assert last.status_code == 429
+    assert "retry-after" in last.headers
+
+
+async def test_audit_record_seed_mode_is_noop() -> None:
+    """In seed mode (db=None), audit.record() must not raise."""
+    from app.services import audit
+
+    await audit.record(
+        None, action="auth.login.success", actor=None, resource_type=None
+    )

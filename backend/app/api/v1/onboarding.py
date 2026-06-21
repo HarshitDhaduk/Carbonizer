@@ -6,11 +6,12 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_user
+from app.core.rate_limit import limiter
 from app.db.session import get_db
 from app.models.emission import FootprintSnapshot
 from app.models.enums import CarType, Diet, EnergySource, HomeType, OnboardingStatus
@@ -114,7 +115,9 @@ async def get_profile(
 
 
 @router.put("/progress", response_model=OnboardingProfileOut)
+@limiter.limit("120/minute")
 async def save_progress(
+    request: Request,
     body: OnboardingProgress,
     subject: str = Depends(require_user),
     db: AsyncSession | None = Depends(get_db),

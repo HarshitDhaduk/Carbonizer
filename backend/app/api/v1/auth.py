@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_user
 from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.core.security import (
     create_access_token,
     hash_password,
@@ -25,6 +26,7 @@ from app.core.security import (
 from app.db.session import get_db
 from app.models.user import PrivacySettings, User
 from app.schemas.auth import RegisterRequest, TokenResponse, UserOut
+from app.services import audit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -42,8 +44,11 @@ def _token(subject: str) -> TokenResponse:
 @router.post(
     "/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED
 )
+@limiter.limit("3/hour")
 async def register(
-    body: RegisterRequest, db: AsyncSession | None = Depends(get_db)
+    request: Request,
+    body: RegisterRequest,
+    db: AsyncSession | None = Depends(get_db),
 ) -> TokenResponse:
     if db is None:
         raise HTTPException(
@@ -64,14 +69,25 @@ async def register(
     )
     user.privacy = PrivacySettings()
     db.add(user)
+    await db.flush()
+    await audit.record(
+        db,
+        action="auth.register",
+        actor=str(user.id),
+        resource_type="user",
+        resource_id=str(user.id),
+        request=request,
+    )
     await db.commit()
     await db.refresh(user)
     return _token(str(user.id))
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("5/minute")
 async def login(
-    form: OAuth2PasswordRequestForm = Depends(),
+    request: Request,
+    form: OAuth2PasswordRequestForm = Depends(OAuth2PasswordRequestForm),
     db: AsyncSession | None = Depends(get_db),
 ) -> TokenResponse:
     email = form.username.strip().lower()
@@ -88,7 +104,25 @@ async def login(
     )
     user = res.scalar_one_or_none()
     if user is None or not verify_password(form.password, user.password_hash):
+        await audit.record(
+            db,
+            action="auth.login.failed",
+            actor=str(user.id) if user else None,
+            resource_type="user",
+            resource_id=str(user.id) if user else None,
+            request=request,
+        )
+        await db.commit()
         raise _bad_credentials()
+    await audit.record(
+        db,
+        action="auth.login.success",
+        actor=str(user.id),
+        resource_type="user",
+        resource_id=str(user.id),
+        request=request,
+    )
+    await db.commit()
     return _token(str(user.id))
 
 
