@@ -28,13 +28,17 @@ function InsightsContent() {
   const attr = useQuery(queries.attribution());
 
   if (summary.error)
-    return <p className="text-sm text-danger">Couldn&apos;t load your insights.</p>;
+    return (
+      <p className="text-sm text-danger">Couldn&apos;t load your insights.</p>
+    );
   if (summary.isPending || !summary.data)
     return <div className="skeleton h-64 rounded-card" />;
 
   const data = summary.data;
   const max = Math.max(...data.categories.map((c) => c.tco2e), 0.001);
-  const measured = data.categories.filter((c) => c.method !== "estimated").length;
+  const measured = data.categories.filter(
+    (c) => c.method !== "estimated",
+  ).length;
   const total = data.categories.length;
 
   function onConnected(next: FootprintSummary) {

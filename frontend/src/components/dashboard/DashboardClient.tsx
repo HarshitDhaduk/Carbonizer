@@ -66,7 +66,9 @@ export function DashboardClient() {
 
   const loading = summary.isPending || nudges.isPending || benchmark.isPending;
   const errMsg =
-    !loading && anyError && !(anyError instanceof ApiError && anyError.status === 401)
+    !loading &&
+    anyError &&
+    !(anyError instanceof ApiError && anyError.status === 401)
       ? anyError instanceof Error
         ? anyError.message
         : "Couldn't load your dashboard."

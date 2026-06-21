@@ -19,7 +19,9 @@ function ActContent() {
   const nudges = useQuery(queries.recommendations());
 
   if (nudges.error)
-    return <p className="text-sm text-danger">Couldn&apos;t load your actions.</p>;
+    return (
+      <p className="text-sm text-danger">Couldn&apos;t load your actions.</p>
+    );
   if (nudges.isPending || !nudges.data)
     return <div className="skeleton h-64 rounded-card" />;
 

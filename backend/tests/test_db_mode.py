@@ -423,7 +423,7 @@ async def test_bank_only_imputes_energy_via_R1(
         user_id=user.id,
         range="12w",
         payload=prior_summary.model_dump(mode="json"),
-        captured_at=datetime.now(UTC),
+        generated_at=datetime.now(UTC),
     )
     db_session.add(snap)
     conn = Connection(user_id=user.id, provider="bank")

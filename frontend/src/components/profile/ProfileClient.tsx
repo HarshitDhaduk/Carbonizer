@@ -44,8 +44,17 @@ function ProfileContent() {
     window.location.assign("/");
   }
 
-  if (error) return <p className="text-sm text-danger">Couldn&apos;t load your profile.</p>;
-  if (isLoading || !me.data || !connections.data || !profile.data || !questionnaire.data)
+  if (error)
+    return (
+      <p className="text-sm text-danger">Couldn&apos;t load your profile.</p>
+    );
+  if (
+    isLoading ||
+    !me.data ||
+    !connections.data ||
+    !profile.data ||
+    !questionnaire.data
+  )
     return <div className="skeleton h-64 rounded-card" />;
 
   const user = me.data;
@@ -77,7 +86,10 @@ function ProfileContent() {
         <h2 className="mb-3 text-sm font-medium text-text-mid">Your data</h2>
         <ul className="mb-3 space-y-2">
           {connections.data.map((c) => (
-            <li key={c.id} className="flex items-center justify-between text-sm">
+            <li
+              key={c.id}
+              className="flex items-center justify-between text-sm"
+            >
               <span className="text-text-hi">{c.label}</span>
               <ConnectionStatus status={c.status} lastSync={c.lastSync} />
             </li>
@@ -122,7 +134,11 @@ function ProfileContent() {
       </section>
 
       {/* sign out */}
-      <Button variant="danger" className="w-full" onClick={() => setConfirmOpen(true)}>
+      <Button
+        variant="danger"
+        className="w-full"
+        onClick={() => setConfirmOpen(true)}
+      >
         <LogOut size={16} aria-hidden /> Log out
       </Button>
 
@@ -157,7 +173,11 @@ function ConnectionStatus({
     <span
       className={cn(
         "inline-flex items-center gap-1.5 text-xs",
-        connected ? "text-brand-400" : attention ? "text-warning" : "text-text-lo",
+        connected
+          ? "text-brand-400"
+          : attention
+            ? "text-warning"
+            : "text-text-lo",
       )}
     >
       <span
