@@ -23,7 +23,10 @@ describe("isVisible", () => {
   });
 
   it("equals: visible only when target matches exactly", () => {
-    const carKm = q("carKmPerWeek", { questionId: "carType", equals: "petrol" });
+    const carKm = q("carKmPerWeek", {
+      questionId: "carType",
+      equals: "petrol",
+    });
     expect(isVisible(carKm, { carType: "petrol" })).toBe(true);
     expect(isVisible(carKm, { carType: "none" })).toBe(false);
     expect(isVisible(carKm, {})).toBe(false);
@@ -70,9 +73,9 @@ describe("visibleQuestions", () => {
       q("carKmPerWeek", { questionId: "carType", equals: "petrol" }),
       q("z"),
     ];
-    expect(visibleQuestions(questions, { carType: "none" }).map((x) => x.id)).toEqual(
-      ["a", "z"],
-    );
+    expect(
+      visibleQuestions(questions, { carType: "none" }).map((x) => x.id),
+    ).toEqual(["a", "z"]);
     expect(
       visibleQuestions(questions, { carType: "petrol" }).map((x) => x.id),
     ).toEqual(["a", "carKmPerWeek", "z"]);

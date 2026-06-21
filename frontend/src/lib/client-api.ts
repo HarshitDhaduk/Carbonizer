@@ -142,8 +142,7 @@ export const clientApi = {
   // Onboarding ---------------------------------------------------------------
   getOnboardingQuestions: () => request<Questionnaire>("/onboarding/questions"),
 
-  getOnboardingProfile: () =>
-    request<OnboardingProfile>("/onboarding/profile"),
+  getOnboardingProfile: () => request<OnboardingProfile>("/onboarding/profile"),
 
   saveOnboardingProgress: (answers: OnboardingAnswers, currentStep: number) =>
     request<OnboardingProfile>("/onboarding/progress", {

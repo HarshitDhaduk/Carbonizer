@@ -26,9 +26,10 @@ const apiMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/client-api", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/client-api")>(
-    "@/lib/client-api",
-  );
+  const actual =
+    await vi.importActual<typeof import("@/lib/client-api")>(
+      "@/lib/client-api",
+    );
   return {
     ...actual,
     clientApi: apiMocks,
@@ -50,9 +51,14 @@ beforeEach(async () => {
 describe("useAuthStore", () => {
   it("login → loadMe populates user and clears loading", async () => {
     const { useAuthStore } = await import("./auth-store");
-    const ok = await useAuthStore.getState().login("a@b.com", "12-chars-strong");
+    const ok = await useAuthStore
+      .getState()
+      .login("a@b.com", "12-chars-strong");
     expect(ok).toBe(true);
-    expect(apiMocks.loginUser).toHaveBeenCalledWith("a@b.com", "12-chars-strong");
+    expect(apiMocks.loginUser).toHaveBeenCalledWith(
+      "a@b.com",
+      "12-chars-strong",
+    );
     expect(useAuthStore.getState().user).toEqual(USER);
     expect(useAuthStore.getState().status).toBe("idle");
     expect(useAuthStore.getState().error).toBeNull();
@@ -72,7 +78,9 @@ describe("useAuthStore", () => {
 
   it("loadMe marks hydrated even when /me 401s (and clears any cached user)", async () => {
     const { ApiError } = await import("@/lib/client-api");
-    apiMocks.getMe.mockRejectedValueOnce(new ApiError(401, "Not authenticated"));
+    apiMocks.getMe.mockRejectedValueOnce(
+      new ApiError(401, "Not authenticated"),
+    );
     const { useAuthStore } = await import("./auth-store");
     useAuthStore.setState({ user: USER });
     await useAuthStore.getState().loadMe();

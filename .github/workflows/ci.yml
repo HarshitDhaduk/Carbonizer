@@ -83,13 +83,16 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Next 16 generates `.next/types/routes.d.ts` during build and
+      # next-env.d.ts now imports it — so `tsc --noEmit` must run AFTER build
+      # or the cold-CI typecheck fails on the missing file.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api/v1
+
       - name: Typecheck
         run: npm run typecheck
 
       - name: Vitest (Phase 3.1 — unit + component)
         run: npm test
-
-      - name: Build
-        run: npm run build
-        env:
-          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api/v1
