@@ -39,6 +39,11 @@ jobs:
       - name: Mypy
         run: mypy app
 
+      - name: pip-audit (HIGH/CRITICAL only — Phase 2.9)
+        run: |
+          pip install pip-audit
+          pip-audit --requirement requirements.txt --strict --vulnerability-service=osv
+
       - name: Pytest with coverage (≥ 65% floor)
         run: pytest --cov=app --cov-branch --cov-report=xml --cov-fail-under=65
 
@@ -68,6 +73,9 @@ jobs:
 
       - name: Install
         run: npm ci
+
+      - name: npm audit (HIGH/CRITICAL only — Phase 2.9)
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Prettier
         run: npm run format:check

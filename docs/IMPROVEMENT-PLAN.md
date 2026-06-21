@@ -13,16 +13,16 @@ called out in the README.
 
 ## Headline summary
 
-| # | Phase | Days | Lifts |
-|---|---|---|---|
-| 1 | **CI + quality gates** | 1–2 | Foundation. Locks everything else in. |
-| 2 | **Security hardening** | 3–5 | Security 6 → 10 |
-| 3 | **Test coverage (frontend + DB-mode + E2E)** | 4–6 | Testing 6 → 10 |
-| 4 | **Efficiency polish (cache + bundle + pool)** | 2–3 | Efficiency 8 → 10 |
-| 5 | **WCAG 2.1 AA + screen-reader pass** | 2–3 | Accessibility 8 → 10 |
-| 6 | **Code-quality polish + module splits + ADRs** | 1–2 | Code Quality 8 → 10 |
-| 7 | **Production readiness (bonus)** | 3–5 | Deploy-ready |
-| **Total** | one engineer end-to-end | **16–26 days** | **All areas 10/10** |
+| # | Phase | Days | Lifts | Status |
+|---|---|---|---|---|
+| 1 | **CI + quality gates** | 1–2 | Foundation. Locks everything else in. | ✅ done |
+| 2 | **Security hardening** | 3–5 | Security 6 → 10 | ~ in progress (2.2/2.3/2.4/2.5/2.6/2.9 done; 2.1 cookies + 2.7/2.8 left) |
+| 3 | **Test coverage (frontend + DB-mode + E2E)** | 4–6 | Testing 6 → 10 | ⬜ |
+| 4 | **Efficiency polish (cache + bundle + pool)** | 2–3 | Efficiency 8 → 10 | ⬜ |
+| 5 | **WCAG 2.1 AA + screen-reader pass** | 2–3 | Accessibility 8 → 10 | ⬜ |
+| 6 | **Code-quality polish + module splits + ADRs** | 1–2 | Code Quality 8 → 10 | ⬜ |
+| 7 | **Production readiness (bonus)** | 3–5 | Deploy-ready | ⬜ |
+| **Total** | one engineer end-to-end | **16–26 days** | **All areas 10/10** | |
 
 Phases 1–6 are the path to 10/10. Phase 7 is a stretch that turns the project
 into something you could actually run for real users.
