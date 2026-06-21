@@ -44,8 +44,15 @@ jobs:
           pip install pip-audit
           pip-audit --requirement requirements.txt --strict --vulnerability-service=osv
 
-      - name: Pytest with coverage (≥ 65% floor)
-        run: pytest --cov=app --cov-branch --cov-report=xml --cov-fail-under=65
+      # Docker is available on ubuntu-latest by default; testcontainers will
+      # auto-pull postgres:16-alpine for the DB-mode tests in tests/test_db_mode.py.
+      # Asserting it explicitly so a future runner image change can't silently
+      # downgrade us to seed-mode-only coverage.
+      - name: Verify Docker daemon for testcontainers
+        run: docker ps >/dev/null
+
+      - name: Pytest with coverage (≥ 70% floor; DB-mode tests included)
+        run: pytest --cov=app --cov-branch --cov-report=xml --cov-fail-under=70
 
       - name: Upload coverage to Codecov
         if: always()
@@ -99,8 +106,8 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Vitest (Phase 3.1 — unit + component)
-        run: npm test
+      - name: Vitest with coverage gate
+        run: npm run test:coverage
 
   e2e:
     name: E2E (Playwright + axe-core)

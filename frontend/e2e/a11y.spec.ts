@@ -29,7 +29,8 @@ function summary(
 ): string {
   if (violations.length === 0) return "no blocking violations";
   const byRule: ImpactCount = {};
-  for (const v of violations) byRule[v.id] = (byRule[v.id] ?? 0) + v.nodes.length;
+  for (const v of violations)
+    byRule[v.id] = (byRule[v.id] ?? 0) + v.nodes.length;
   return violations
     .map((v) => `${v.id} (${v.impact}): ${v.help} — ${byRule[v.id]} node(s)`)
     .join("\n");
@@ -87,9 +88,6 @@ test.describe("accessibility (axe-core, WCAG 2 AA)", () => {
     const results = await new AxeBuilder({ page })
       .withRules(["color-contrast"])
       .analyze();
-    expect(
-      results.violations,
-      summary(results.violations),
-    ).toEqual([]);
+    expect(results.violations, summary(results.violations)).toEqual([]);
   });
 });

@@ -75,7 +75,10 @@ test.describe("auth flow", () => {
     await expect(
       page.getByRole("heading", { name: /create your account/i }),
     ).toBeVisible();
-    await page.getByRole("button", { name: /sign in/i }).last().click();
+    await page
+      .getByRole("button", { name: /sign in/i })
+      .last()
+      .click();
     await expect(
       page.getByRole("heading", { name: /welcome back/i }),
     ).toBeVisible();
