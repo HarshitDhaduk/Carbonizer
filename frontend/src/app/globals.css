@@ -24,7 +24,9 @@
   /* text */
   --text-hi: #eaf6ef;
   --text-mid: #a7beb2;
-  --text-lo: #6e847a;
+  /* Bumped from #6e847a to keep ≥ 4.5:1 contrast against --bg-base / glass
+     surfaces (WCAG 2 AA for small text). Caught by axe-core in e2e a11y. */
+  --text-lo: #8aa094;
 
   /* category accents */
   --cat-transport: #38bdf8;

@@ -108,6 +108,7 @@ export function AuthGate() {
           placeholder={isRegister ? "At least 12 characters" : "Your password"}
           show={showPassword}
           onToggle={() => setShowPassword((s) => !s)}
+          minLength={isRegister ? 12 : undefined}
         />
 
         {isRegister && (
@@ -123,6 +124,7 @@ export function AuthGate() {
             placeholder="Re-enter your password"
             show={showPassword}
             onToggle={() => setShowPassword((s) => !s)}
+            minLength={12}
           />
         )}
 
@@ -164,6 +166,7 @@ function PasswordField({
   placeholder,
   show,
   onToggle,
+  minLength,
 }: {
   id: string;
   label: string;
@@ -173,6 +176,8 @@ function PasswordField({
   placeholder: string;
   show: boolean;
   onToggle: () => void;
+  /** Skip minLength on login so existing short-password accounts still work. */
+  minLength?: number | undefined;
 }) {
   return (
     <div>
@@ -185,7 +190,7 @@ function PasswordField({
           type={show ? "text" : "password"}
           autoComplete={autoComplete}
           required
-          minLength={12}
+          {...(minLength !== undefined ? { minLength } : {})}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className={cn(

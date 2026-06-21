@@ -57,3 +57,9 @@ limiter = Limiter(
     storage_uri=_STORAGE,
     headers_enabled=True,  # adds RateLimit-* + Retry-After response headers
 )
+
+# Test / e2e escape hatch — set RATE_LIMIT_ENABLED=false to disable counting.
+# The unit suite already does this via conftest; the e2e suite needs an env
+# flag because the backend is a separate process there.
+if os.environ.get("RATE_LIMIT_ENABLED", "true").lower() in {"false", "0", "no"}:
+    limiter.enabled = False
