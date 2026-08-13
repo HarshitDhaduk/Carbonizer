@@ -16,5 +16,5 @@ PyJWT==2.13.0
 passlib[argon2]==1.7.4
 python-multipart==0.0.31
 slowapi==0.1.9
-cryptography==48.0.1
+cryptography==50.0.0
 prometheus-client==0.25.0

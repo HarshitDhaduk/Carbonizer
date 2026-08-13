@@ -1088,3 +1088,27 @@ async def test_login_rejects_non_ascii_email_with_401_not_500(
         data={"username": "démo@carbonizer.app", "password": settings.demo_password},
     )
     assert resp.status_code == 401
+
+
+def test_fernet_ciphertext_stays_readable_across_library_upgrades() -> None:
+    """Stored provider tokens must survive a `cryptography` version bump.
+
+    `access_token_enc` is Fernet ciphertext persisted in Postgres, so a library
+    upgrade that changed the wire format would silently orphan every connected
+    account's token. The blob below is frozen at the version this test was
+    written against; it must keep decrypting. The leading 0x80 is the Fernet
+    spec's version byte — if that ever changes, this fails loudly and the
+    upgrade needs a re-encryption migration rather than a pin bump.
+    """
+    import base64
+
+    from cryptography.fernet import Fernet
+
+    key = base64.urlsafe_b64encode(b"carbonizer-fernet-compat-testkey")
+    frozen = (
+        b"gAAAAABqfZjtYtWE0w4ioi__Y5QMT8f5Ig2LO2I4FFmnovU9kqTRUO9VCVo4csjmy1YW"
+        b"Jopc1LOOo7XostKJy9oKp0mN9vSFA0YMf2kTQbAeRRPkmy1a_fY="
+    )
+
+    assert Fernet(key).decrypt(frozen) == b"provider-oauth-token"
+    assert base64.urlsafe_b64decode(frozen)[0] == 0x80
