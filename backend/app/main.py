@@ -7,6 +7,7 @@ Docs: http://localhost:8000/docs  ·  OpenAPI: /api/v1/openapi.json
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import cast
@@ -96,16 +97,60 @@ app = FastAPI(
 
 # Origin allowlist:
 #   - Dev: any localhost/127.0.0.1 port (dev servers pick random ports).
-#   - Prod: the explicit `CORS_ORIGINS` env list, PLUS the user's deploy host
-#     patterns (vercel.app preview URLs change per commit, Render's own URL
-#     is stable). State-changing requests are still gated by the CSRF
-#     double-submit cookie (see core/csrf.py), so a malicious vercel.app
-#     project can't drive the API even with a matching origin.
-_PROD_ORIGIN_REGEX = (
-    r"https://[a-z0-9-]+\.vercel\.app"
-    r"|https://[a-z0-9-]+\.onrender\.com"
-)
+#   - Prod: the explicit `CORS_ORIGINS` env list, PLUS *this project's own*
+#     preview deployments on Vercel / Render.
+#
+# The preview pattern is derived from the hostnames already in `CORS_ORIGINS`
+# rather than hardcoded as `*.vercel.app`. A platform-wide wildcard would admit
+# every free subdomain either platform hands out on signup, and with
+# `allow_credentials=True` that is a same-trust origin for an attacker: GETs
+# are CSRF-exempt by design, so an attacker page could read a victim's
+# `/footprint/summary` or `/privacy/export/.../download`, and `/auth/refresh`
+# is CSRF-exempt *and* returns a live access JWT in its body. CSRF does not
+# contain either path — the origin allowlist has to.
 _DEV_ORIGIN_REGEX = r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
+
+# Vercel preview hosts are `<project>-<hash>-<scope>.vercel.app`; Render's are
+# `<service>-<suffix>.onrender.com`. Both keep the configured host as a prefix,
+# so anchoring on it admits our own previews and rejects unrelated projects.
+#
+# Residual risk, stated plainly: this narrows the allowlist from "every free
+# subdomain on the platform" to "projects whose name starts with ours", which
+# a determined attacker who knows the target could still claim. Closing it
+# fully means dropping preview support and listing each preview origin in
+# CORS_ORIGINS explicitly, or fronting previews with Vercel deployment
+# protection. Tracked in docs/AUDIT-2026-08.md.
+_PREVIEW_SUFFIXES = (".vercel.app", ".onrender.com")
+
+
+def _preview_origin_regex(origins: list[str]) -> str | None:
+    """Build a regex matching preview deploys of the configured origins only.
+
+    For every ``https://<name><suffix>`` in ``CORS_ORIGINS`` where ``suffix`` is
+    a known preview platform, allow ``https://<name>-<anything><suffix>`` too.
+    Returns None when no configured origin lives on such a platform, in which
+    case the exact ``CORS_ORIGINS`` list is the whole allowlist.
+    """
+    patterns: list[str] = []
+    for origin in origins:
+        host = origin.split("://", 1)[-1].rstrip("/")
+        for suffix in _PREVIEW_SUFFIXES:
+            if not host.endswith(suffix):
+                continue
+            project = host[: -len(suffix)]
+            if not project:
+                continue
+            patterns.append(
+                rf"https://{re.escape(project)}-[a-z0-9-]+{re.escape(suffix)}"
+            )
+    return "|".join(patterns) if patterns else None
+
+
+_origin_regex = (
+    _preview_origin_regex(settings.cors_origins)
+    if settings.is_production
+    else _DEV_ORIGIN_REGEX
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -113,9 +158,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_origin_regex=(
-        _PROD_ORIGIN_REGEX if settings.is_production else _DEV_ORIGIN_REGEX
-    ),
+    # `allow_origin_regex=None` is the documented "no regex" value — the exact
+    # `allow_origins` list still applies.
+    allow_origin_regex=_origin_regex,
 )
 
 app.add_middleware(SecurityHeadersMiddleware)

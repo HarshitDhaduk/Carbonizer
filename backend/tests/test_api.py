@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC
+from typing import ClassVar
 
+import pytest
 from httpx import AsyncClient
+
+from app.core.config import settings
+from app.db import session
 
 
 async def test_healthz(client: AsyncClient) -> None:
@@ -513,16 +519,50 @@ async def test_request_id_preserved_when_caller_sets_it(
 
 
 async def test_readyz_returns_ok_in_seed_mode(
-    client: AsyncClient, api_prefix: str
+    client: AsyncClient, api_prefix: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Readyz returns 200 with a healthy status in seed mode (DB skipped) or
-    DB-mode where the test container is up. 503 only if a real DB is
-    configured but unreachable."""
+    """Readyz reports healthy in seed mode, where the DB check is skipped.
+
+    `use_db` is pinned rather than inherited: conftest overrides the `get_db`
+    dependency, but readyz reads `settings.use_db` and calls `get_engine()`
+    directly, so a developer .env with USE_DB=true otherwise fails this test
+    against their unreachable local Postgres.
+    """
+    monkeypatch.setattr(settings, "use_db", False)
     resp = await client.get(f"{api_prefix}/readyz")
     assert resp.status_code == 200
     body = resp.json()
     assert body["status"] == "ok"
-    assert body["database"] in (True, "skipped")
+    assert body["database"] == "skipped"
+
+
+async def test_readyz_503s_without_leaking_db_details(
+    client: AsyncClient, api_prefix: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed DB probe drains traffic (503) without echoing the driver error.
+
+    /readyz is unauthenticated (it's the platform health-check path), and
+    asyncpg/SQLAlchemy exceptions carry the Postgres role, host and connection
+    arguments. The detail belongs in the logs, not the response body.
+    """
+    monkeypatch.setattr(settings, "use_db", True)
+    monkeypatch.setattr(
+        settings,
+        "database_url",
+        "postgresql+asyncpg://leaky_role:hunter2@db.internal.example:5432/carbonizer",
+    )
+    monkeypatch.setattr(session, "_engine", None)
+    monkeypatch.setattr(session, "_sessionmaker", None)
+
+    resp = await client.get(f"{api_prefix}/readyz")
+
+    assert resp.status_code == 503
+    body = resp.json()
+    assert body["status"] == "degraded"
+    assert body["database"] == "error"
+    assert "leaky_role" not in resp.text
+    assert "hunter2" not in resp.text
+    assert "db.internal.example" not in resp.text
 
 
 def test_json_log_formatter_carries_request_id() -> None:
@@ -881,3 +921,170 @@ def test_dsr_export_omits_access_tokens() -> None:
     # _safe coerces bytes → None; the privacy router additionally strips the key.
     assert dumped["access_token_enc"] is None
     assert dumped["id"] == "abc"
+
+
+# --- audit/2026-08 hardening regressions -------------------------------------
+
+
+def test_cors_preview_regex_rejects_unrelated_platform_projects() -> None:
+    """C1 — the prod origin allowlist must not admit every *.vercel.app host.
+
+    Both platforms hand out free subdomains on signup. With
+    allow_credentials=True a matching origin is a same-trust origin: GETs are
+    CSRF-exempt by design, and /auth/refresh is CSRF-exempt *and* returns a
+    live access JWT in its body.
+    """
+    from app.main import _preview_origin_regex
+
+    pattern = _preview_origin_regex(
+        ["https://carbonizer.vercel.app", "https://carbonizer-api.onrender.com"]
+    )
+    assert pattern is not None
+    matcher = re.compile(pattern)
+
+    # our own preview deploys still work
+    assert matcher.fullmatch("https://carbonizer-9f3ab21-harshit.vercel.app")
+    assert matcher.fullmatch("https://carbonizer-git-feat-x-harshit.vercel.app")
+    assert matcher.fullmatch("https://carbonizer-api-staging.onrender.com")
+
+    # unrelated projects on the same platform do not
+    assert not matcher.fullmatch("https://evil-attacker.vercel.app")
+    assert not matcher.fullmatch("https://totally-not-carbonizer.onrender.com")
+    assert not matcher.fullmatch("https://carbonizer.vercel.app.attacker.com")
+
+
+def test_cors_preview_regex_is_none_without_platform_origins() -> None:
+    """A custom-domain-only deploy gets no wildcard at all — the exact
+    CORS_ORIGINS list is then the whole allowlist."""
+    from app.main import _preview_origin_regex
+
+    assert _preview_origin_regex(["https://carbonizer.app"]) is None
+    assert _preview_origin_regex([]) is None
+
+
+async def test_refresh_rejects_subject_with_no_live_user(
+    client: AsyncClient, api_prefix: str
+) -> None:
+    """H1 — a refresh cookie must stop working once the user row is gone.
+
+    JWTs are stateless with no denylist, so without a lookup an erased
+    account's 30-day refresh cookie keeps minting access tokens.
+    """
+    from app.core.security import create_refresh_token
+    from app.db.session import get_db
+    from app.main import app
+
+    class _NoUserResult:
+        def scalar_one_or_none(self) -> None:
+            return None
+
+    class _NoUserSession:
+        async def execute(self, *_a: object, **_kw: object) -> _NoUserResult:
+            return _NoUserResult()
+
+    async def _override():  # type: ignore[no-untyped-def]
+        yield _NoUserSession()
+
+    previous = app.dependency_overrides[get_db]
+    app.dependency_overrides[get_db] = _override
+    try:
+        erased = "1e9d1c1a-0000-4000-8000-000000000000"
+        client.cookies.set("cb_refresh", create_refresh_token(erased))
+        resp = await client.post(f"{api_prefix}/auth/refresh")
+    finally:
+        app.dependency_overrides[get_db] = previous
+        client.cookies.clear()
+
+    assert resp.status_code == 401
+
+
+async def test_refresh_still_works_for_the_demo_subject(
+    client: AsyncClient, api_prefix: str
+) -> None:
+    """H1 must not regress seed mode — the demo subject has no row to look up."""
+    login = await client.post(
+        f"{api_prefix}/auth/login",
+        data={"username": settings.demo_email, "password": settings.demo_password},
+    )
+    assert login.status_code == 200
+    resp = await client.post(f"{api_prefix}/auth/refresh")
+    assert resp.status_code == 200
+    client.cookies.clear()
+
+
+def test_audit_prefers_the_minted_request_id() -> None:
+    """M3 — audit rows must carry the id the middleware minted.
+
+    RequestIdMiddleware stores a fresh UUID in the contextvar when the caller
+    sends no X-Request-Id, but never writes it onto the request headers.
+    Reading only the header left request_id NULL on every direct call.
+    """
+    import asyncio
+
+    from app.core.logging import request_id_var
+    from app.services import audit
+
+    captured: list[object] = []
+
+    class _CapturingSession:
+        def add(self, row: object) -> None:
+            captured.append(row)
+
+        async def flush(self) -> None:
+            return None
+
+    class _NoHeaderRequest:
+        headers: ClassVar[dict[str, str]] = {}
+        client = None
+
+    token = request_id_var.set("minted-by-middleware")
+    try:
+        asyncio.run(
+            audit.record(
+                _CapturingSession(),  # type: ignore[arg-type]
+                action="auth.login.success",
+                actor=None,
+                request=_NoHeaderRequest(),  # type: ignore[arg-type]
+            )
+        )
+    finally:
+        request_id_var.reset(token)
+
+    assert len(captured) == 1
+    assert captured[0].request_id == "minted-by-middleware"  # type: ignore[attr-defined]
+
+
+def test_seed_mode_login_uses_constant_time_comparison() -> None:
+    """L4 — the one credential check that wasn't constant-time now is."""
+    import inspect
+
+    from app.api.v1 import auth as auth_module
+
+    source = inspect.getsource(auth_module._login_seed_mode)
+    assert "compare_digest" in source
+    assert "!=" not in source
+
+
+async def test_login_rejects_non_ascii_password_with_401_not_500(
+    client: AsyncClient, api_prefix: str
+) -> None:
+    """`hmac.compare_digest` raises TypeError on non-ASCII *str*, so the
+    constant-time comparison must run over UTF-8 bytes — otherwise a wrong
+    password containing an accent becomes a 500 instead of a 401."""
+    resp = await client.post(
+        f"{api_prefix}/auth/login",
+        data={"username": settings.demo_email, "password": "pässwörd-ünicode"},
+    )
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Incorrect email or password"
+
+
+async def test_login_rejects_non_ascii_email_with_401_not_500(
+    client: AsyncClient, api_prefix: str
+) -> None:
+    """Same guard on the username side."""
+    resp = await client.post(
+        f"{api_prefix}/auth/login",
+        data={"username": "démo@carbonizer.app", "password": settings.demo_password},
+    )
+    assert resp.status_code == 401

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { Check } from "lucide-react";
 import type { AnswerValue, Question } from "@/lib/types";
 import { cn } from "@/lib/cn";
@@ -33,6 +34,7 @@ export function QuestionInput({
         <SingleChoice question={question} value={value} onChange={onChange} />
       ) : (
         <NumberQuestion
+          label={question.label}
           value={Number(value ?? question.default)}
           min={question.min ?? 0}
           max={question.max ?? 100}
@@ -45,6 +47,14 @@ export function QuestionInput({
   );
 }
 
+/**
+ * `role="radiogroup"` promises assistive tech a specific keyboard contract:
+ * the group is a single tab stop, and arrows move *and* select within it.
+ * These are `<button role="radio">` rather than native inputs (for the card
+ * layout), so that contract has to be implemented — roving tabIndex plus
+ * Arrow/Home/End below. Without it a screen-reader user is told to use arrows
+ * that do nothing.
+ */
 function SingleChoice({
   question,
   value,
@@ -54,9 +64,57 @@ function SingleChoice({
   value: AnswerValue;
   onChange: (value: AnswerValue) => void;
 }) {
+  const groupRef = useRef<HTMLDivElement>(null);
+  const options = question.options ?? [];
+  const selectedIndex = options.findIndex((o) => o.value === value);
+  // Nothing selected yet → the first option carries the tab stop, so the group
+  // is always reachable.
+  const focusIndex = selectedIndex >= 0 ? selectedIndex : 0;
+
+  const moveTo = (index: number) => {
+    const next = options[(index + options.length) % options.length];
+    if (!next) return;
+    onChange(next.value);
+    // Selection follows focus in this pattern, so move focus to match.
+    groupRef.current
+      ?.querySelectorAll<HTMLButtonElement>('[role="radio"]')
+      [(index + options.length) % options.length]?.focus();
+  };
+
+  const onKeyDown = (
+    e: React.KeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) => {
+    switch (e.key) {
+      case "ArrowDown":
+      case "ArrowRight":
+        e.preventDefault();
+        moveTo(index + 1);
+        break;
+      case "ArrowUp":
+      case "ArrowLeft":
+        e.preventDefault();
+        moveTo(index - 1);
+        break;
+      case "Home":
+        e.preventDefault();
+        moveTo(0);
+        break;
+      case "End":
+        e.preventDefault();
+        moveTo(options.length - 1);
+        break;
+    }
+  };
+
   return (
-    <div role="radiogroup" aria-label={question.label} className="space-y-2">
-      {(question.options ?? []).map((opt) => {
+    <div
+      ref={groupRef}
+      role="radiogroup"
+      aria-label={question.label}
+      className="space-y-2"
+    >
+      {options.map((opt, index) => {
         const selected = value === opt.value;
         return (
           <button
@@ -64,6 +122,8 @@ function SingleChoice({
             type="button"
             role="radio"
             aria-checked={selected}
+            tabIndex={index === focusIndex ? 0 : -1}
+            onKeyDown={(e) => onKeyDown(e, index)}
             onClick={() => onChange(opt.value)}
             className={cn(
               "flex w-full items-center justify-between rounded-md border px-4 py-3 text-left transition-colors duration-fast",
@@ -84,6 +144,7 @@ function SingleChoice({
 }
 
 function NumberQuestion({
+  label,
   value,
   min,
   max,
@@ -91,6 +152,8 @@ function NumberQuestion({
   unit,
   onChange,
 }: {
+  /** The question text — this is the slider's accessible name. */
+  label: string;
   value: number;
   min: number;
   max: number;
@@ -112,7 +175,10 @@ function NumberQuestion({
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-full accent-brand-500"
-        aria-label={unit ? `Value in ${unit}` : "Value"}
+        // Name the control after the question, not "Value in km" — a
+        // screen-reader user hears the name alone, and the <legend> that
+        // carries the question isn't reliably announced as the control's name.
+        aria-label={label}
         aria-valuetext={unit ? `${value} ${unit}` : `${value}`}
       />
       <div className="tnum mt-1 flex justify-between text-[11px] text-text-lo">

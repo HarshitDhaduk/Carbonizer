@@ -83,6 +83,13 @@ export function Questionnaire({
       />
       <QuestionInput question={q} value={answers[q.id]!} onChange={setAnswer} />
 
+      {/* Advancing swaps the question in place and leaves focus on the Next
+          button, so without this a screen-reader user gets no signal that the
+          content changed — the unannounced-route-change failure mode. */}
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {`Question ${safeStep + 1} of ${total}: ${q.label}`}
+      </p>
+
       <div className="mt-8 flex items-center gap-3">
         <Button
           variant="ghost"

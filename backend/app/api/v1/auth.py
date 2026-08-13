@@ -13,6 +13,7 @@ read the cookie automatically.
 
 from __future__ import annotations
 
+import hmac
 import uuid
 
 import jwt
@@ -150,9 +151,8 @@ async def _create_user(
     summary="Sign in (OAuth2 password grant)",
     description=(
         "Verifies an Argon2id password hash and sets the session cookie "
-        "trio. Rate-limited to 5/minute per IP; on credential-stuffing "
-        "patterns the email-scoped limiter kicks in too. Failed attempts "
-        "are written to the audit log."
+        "trio. Rate-limited to 5/minute per IP. Failed attempts are written "
+        "to the audit log."
     ),
 )
 @limiter.limit("5/minute")
@@ -170,8 +170,23 @@ async def login(
 
 
 def _login_seed_mode(response: Response, email: str, password: str) -> TokenResponse:
-    """Seed-mode auth — only the demo credentials work."""
-    if email != settings.demo_email or password != settings.demo_password:
+    """Seed-mode auth — only the demo credentials work.
+
+    Both comparisons are constant-time. DB-mode already gets this from Argon2
+    verification; this was the one credential check in the codebase that leaked
+    a match-length timing signal.
+
+    Compared as UTF-8 bytes, not str: ``compare_digest`` raises TypeError on
+    non-ASCII strings, which would turn a wrong password containing an accent
+    into a 500 instead of a 401.
+    """
+    email_ok = hmac.compare_digest(
+        email.encode("utf-8"), settings.demo_email.encode("utf-8")
+    )
+    password_ok = hmac.compare_digest(
+        password.encode("utf-8"), settings.demo_password.encode("utf-8")
+    )
+    if not (email_ok and password_ok):
         raise _bad_credentials()
     return _issue_session(response, DEMO_USER_ID)
 
@@ -201,13 +216,22 @@ async def _login_db_mode(
     response_model=TokenResponse,
     summary="Rotate the access + CSRF cookies",
 )
-async def refresh(request: Request, response: Response) -> TokenResponse:
+async def refresh(
+    request: Request,
+    response: Response,
+    db: AsyncSession | None = Depends(get_db),
+) -> TokenResponse:
     """Rotate the access + CSRF cookies using the refresh JWT.
 
     The refresh cookie is HttpOnly and ``Path=/api/v1/auth`` so the browser
     only sends it on this endpoint. Successful refresh issues a fresh CSRF
     token too — long-running tabs stay in sync after the previous one ages
     out alongside the access cookie.
+
+    The subject is re-checked against the users table before re-issuing.
+    Tokens are stateless with no denylist, so without this an erased account's
+    30-day refresh cookie would keep minting access tokens long after
+    ``dsr._purge_user`` deleted the row.
     """
     refresh_token = request.cookies.get(settings.refresh_cookie_name)
     if not refresh_token:
@@ -221,8 +245,29 @@ async def refresh(request: Request, response: Response) -> TokenResponse:
     subject = payload.get("sub")
     if not isinstance(subject, str):
         raise _unauthenticated()
+    if not await _subject_still_active(db, subject):
+        raise _unauthenticated()
     set_auth_cookies(response, subject)
     return _token_response(subject)
+
+
+async def _subject_still_active(db: AsyncSession | None, subject: str) -> bool:
+    """True when ``subject`` may still be issued a session.
+
+    Seed mode (no DB) and the demo subject have no row to check, so they pass.
+    A UUID subject must resolve to a live, non-soft-deleted user — matching the
+    filter ``_login_db_mode`` applies at sign-in.
+    """
+    if db is None or subject == DEMO_USER_ID:
+        return True
+    try:
+        uid = uuid.UUID(subject)
+    except ValueError:
+        return False
+    res = await db.execute(
+        select(User.id).where(User.id == uid, User.deleted_at.is_(None))
+    )
+    return res.scalar_one_or_none() is not None
 
 
 @router.post(

@@ -7,11 +7,12 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_user
 from app.db.session import get_db
-from app.models.enums import LocPrecision
+from app.models.enums import DsrKind, LocPrecision
 from app.models.privacy import DsrJob
 from app.schemas.privacy import (
     ConsentOut,
@@ -120,6 +121,11 @@ async def download_export(
             detail="Data export requires the database.",
         )
     user_id = _parse_uuid(subject)
+    if not await _owns_export_job(db, user_id, job_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No export job found for that id.",
+        )
     bundle = await dsr.assemble_export_bundle(db, user_id)
     await audit.record(
         db,
@@ -211,6 +217,27 @@ async def cancel_erase(
     )
     await db.commit()
     return _job_out(job)
+
+
+async def _owns_export_job(
+    db: AsyncSession, user_id: uuid.UUID, job_id: uuid.UUID
+) -> bool:
+    """True when ``job_id`` is an export job belonging to ``user_id``.
+
+    The bundle is assembled from ``user_id``, so skipping this never leaked
+    another user's data — but it did mean a request naming a nonexistent job
+    returned 200, and wrote that fabricated id into the audit log as the
+    resource. ``dsr_export.create_export_job`` always inserts the row before
+    handing out the download URL, so every legitimate URL resolves here.
+    """
+    res = await db.execute(
+        select(DsrJob.id).where(
+            DsrJob.id == job_id,
+            DsrJob.user_id == user_id,
+            DsrJob.kind == DsrKind.export,
+        )
+    )
+    return res.scalar_one_or_none() is not None
 
 
 def _parse_uuid(subject: str) -> uuid.UUID:

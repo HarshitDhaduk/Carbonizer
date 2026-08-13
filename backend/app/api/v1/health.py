@@ -14,11 +14,15 @@ DB blip drains traffic from this instance.
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Response, status
 from sqlalchemy import text
 
 from app.core.config import settings
 from app.db.session import get_engine
+
+logger = logging.getLogger("carbonizer.health")
 
 router = APIRouter(tags=["health"])
 
@@ -52,8 +56,14 @@ async def readyz(response: Response) -> dict[str, object]:
             async with engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
             db_ok = True
-        except Exception as exc:
-            db_ok = f"error: {exc}"
+        except Exception:
+            # This endpoint is unauthenticated (it's the platform health-check
+            # path), so the driver's message never goes on the wire: asyncpg
+            # and SQLAlchemy surface the Postgres role, host, and connection
+            # arguments in their exception text. Operators read the detail from
+            # the logs, correlated by request id.
+            logger.warning("readyz: database check failed", exc_info=True)
+            db_ok = "error"
 
     healthy = db_ok is True or db_ok == "skipped"
     if not healthy:

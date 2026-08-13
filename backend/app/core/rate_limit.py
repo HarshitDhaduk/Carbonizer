@@ -1,12 +1,15 @@
 """Rate limiting for auth endpoints (Phase 2.2, docs/IMPROVEMENT-PLAN.md).
 
-In-memory token-bucket via slowapi. Per-IP + per-email composite keys catch the
-two common abuse patterns:
+In-memory token-bucket via slowapi, keyed on client IP. This bounds **password
+spray** — one attacker walking many emails from a single IP.
 
-  - **Password spray** — same attacker hitting many emails from one IP: bounded by
-    the IP limit.
-  - **Credential stuffing** — many IPs against one known email: bounded by the
-    email limit (we hash the email so it doesn't end up in logs).
+It does **not** bound **credential stuffing** — many IPs against one known
+email. That needs an email-scoped key, which is not wired: an earlier
+``_email_key`` helper existed but was never referenced by any limiter, and the
+request state it read from was never populated. It has been removed rather than
+left as a claim the code doesn't honour. Adding a real email-scoped limiter
+changes when callers receive 429, so it belongs in its own change with tests
+(see docs/AUDIT-2026-08.md, M2).
 
 The in-memory backend is fine for a single-instance free-tier deploy. A
 production fleet behind a load balancer would set
@@ -16,7 +19,6 @@ deploys count requests across all instances.
 
 from __future__ import annotations
 
-import hashlib
 import os
 
 from fastapi import Request
@@ -25,26 +27,14 @@ from slowapi.util import get_remote_address
 
 
 def _client_ip(request: Request) -> str:
-    """Best-effort client IP that also respects X-Forwarded-For when present."""
+    """Client IP as slowapi sees it — ``request.client.host``.
+
+    Note this reads the *socket* peer, not ``X-Forwarded-For``. Behind a proxy
+    the real client IP arrives because uvicorn runs with ``--proxy-headers``
+    (see backend/Dockerfile), which rewrites ``request.client`` before the app
+    is reached. Drop that flag and every request buckets under the proxy's IP.
+    """
     return get_remote_address(request)
-
-
-def _email_key(request: Request) -> str:
-    """Composite key: scope by email if the request carries one as a form field,
-    falling back to IP. Hashed so the limiter store never logs raw emails."""
-    email: str | None = None
-    # OAuth2PasswordRequestForm posts application/x-www-form-urlencoded
-    if request.method == "POST":
-        # cheap, non-consuming peek — slowapi calls this synchronously before
-        # the route handler reads the body, so we use request.scope's cached
-        # query string as a fallback only.
-        body_form = getattr(request.state, "_login_form", None)
-        if body_form is not None:
-            email = body_form.get("username")
-    if not email:
-        return _client_ip(request)
-    digest = hashlib.sha256(email.strip().lower().encode("utf-8")).hexdigest()[:16]
-    return f"email:{digest}"
 
 
 # Storage URL: in-memory by default; set RATE_LIMIT_STORAGE_URL=redis://... in

@@ -52,7 +52,12 @@ async def get_db() -> AsyncIterator[AsyncSession | None]:
 
 async def dispose_engine() -> None:
     """Close the connection pool — called from the FastAPI lifespan shutdown."""
-    global _engine
+    global _engine, _sessionmaker
     if _engine is not None:
         await _engine.dispose()
         _engine = None
+        # Clear the sessionmaker too: it holds a reference to the engine we
+        # just disposed. Leaving it set means a later get_engine() rebuilds
+        # `_engine` but keeps the stale binding, handing out sessions attached
+        # to a dead pool.
+        _sessionmaker = None

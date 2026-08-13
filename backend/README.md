@@ -13,7 +13,7 @@ the API runs with zero infrastructure:
 cd backend
 python -m venv .venv
 # Windows:  .venv\Scripts\activate     macOS/Linux:  source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # runtime deps + pytest/httpx
 cp .env.example .env
 
 uvicorn app.main:app --reload          # http://localhost:8000

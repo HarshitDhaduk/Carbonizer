@@ -1,9 +1,9 @@
 /**
  * Browser-side, authenticated API client.
  *
- * Distinct from `src/lib/api.ts`, which is the unauthenticated SSR client used by
- * server components for the public dashboard. This one runs in the browser, uses
- * HttpOnly cookies for auth (set by /auth/login), and backs auth + onboarding.
+ * Runs in the browser, uses HttpOnly cookies for auth (set by /auth/login), and
+ * backs auth + onboarding. Server components read the public dashboard through
+ * the same module — `resolveApiBase` below branches on `typeof window`.
  *
  * Why no token plumbing — Phase 2.1 of docs/IMPROVEMENT-PLAN.md moved JWTs into
  * `HttpOnly` cookies. The browser attaches the access cookie automatically; this
@@ -79,7 +79,36 @@ function readCookie(name: string): string | null {
   return value !== undefined ? decodeURIComponent(value) : null;
 }
 
-async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+/**
+ * Endpoints that must never trigger the refresh-and-retry below: the refresh
+ * call itself (infinite recursion) and the credential endpoints, whose 401 is
+ * a genuine "wrong password", not an expired session.
+ */
+const NO_REFRESH_RETRY = ["/auth/refresh", "/auth/login", "/auth/register"];
+
+/** In-flight refresh, shared so parallel 401s trigger one rotation, not N. */
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function refreshSession(): Promise<boolean> {
+  refreshInFlight ??= (async () => {
+    try {
+      await send("/auth/refresh", { method: "POST" });
+      return true;
+    } catch {
+      return false;
+    } finally {
+      // Clear on the next tick so callers awaiting this promise all observe
+      // the same result before a new attempt can start.
+      queueMicrotask(() => {
+        refreshInFlight = null;
+      });
+    }
+  })();
+  return refreshInFlight;
+}
+
+/** One HTTP round-trip. Throws ApiError on a non-2xx. */
+async function send<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const method = opts.method ?? "GET";
   const headers: Record<string, string> = { Accept: "application/json" };
 
@@ -115,6 +144,28 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   return (await res.json()) as T;
 }
 
+/**
+ * `send` plus a single silent session rotation on 401.
+ *
+ * The access cookie lives 15 minutes; the refresh cookie lives 30 days. Without
+ * this the first request after the access cookie ages out 401s, `loadMe` clears
+ * the user, and `useAuthGuard` bounces a still-authenticated visitor back to
+ * onboarding — a forced re-login every 15 minutes with a valid session in hand.
+ */
+async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+  try {
+    return await send<T>(path, opts);
+  } catch (err) {
+    const retryable =
+      err instanceof ApiError &&
+      err.status === 401 &&
+      !NO_REFRESH_RETRY.some((p) => path.startsWith(p));
+    if (!retryable) throw err;
+    if (!(await refreshSession())) throw err;
+    return send<T>(path, opts);
+  }
+}
+
 async function extractError(res: Response): Promise<string> {
   try {
     const data = (await res.json()) as { detail?: unknown; title?: unknown };
@@ -146,11 +197,20 @@ export const clientApi = {
       form: { username: email, password },
     }),
 
-  /** Issue a CSRF cookie if missing. Called once at app boot. */
+  /**
+   * Issue a CSRF cookie if missing. Not needed on the normal path — login,
+   * register and refresh are all CSRF-exempt and set the cookie themselves —
+   * but kept for clients that hold a session without having gone through one
+   * of those in this browser.
+   */
   ensureCsrf: () => request<void>("/auth/csrf"),
 
   logout: () => request<void>("/auth/logout", { method: "POST" }),
 
+  /**
+   * Rotate the session explicitly. `request` already does this automatically
+   * on a 401, so callers rarely need it.
+   */
   refresh: () => request<TokenResponse>("/auth/refresh", { method: "POST" }),
 
   getMe: () => request<AuthUser>("/auth/me"),
