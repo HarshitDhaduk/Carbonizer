@@ -1,8 +1,16 @@
 """Ingestion endpoints (provider webhooks / edge oracle).
 
-Authenticated machine-to-machine in production (HMAC signature header). Here they
-accept payloads and acknowledge; the classification + emission-factor pipeline that
-writes ledger_entries runs asynchronously (DB-SCHEMA §4–5).
+These accept payloads and acknowledge; the classification + emission-factor
+pipeline that writes ledger_entries runs asynchronously (DB-SCHEMA §4–5). The
+handlers are no-ops today — the live path is ``services.bank_sync``, driven by
+``/connections/{provider}/sync``.
+
+**Not yet authenticated.** Production needs an HMAC signature header and a
+bounded batch size; neither is implemented, so today an anonymous caller can
+force an arbitrarily large Pydantic parse. Both changes alter the contract for
+existing callers, so they're tracked as follow-ups rather than bolted on — see
+docs/AUDIT-2026-08.md (L5). Do not route real provider traffic here until they
+land.
 """
 
 from __future__ import annotations

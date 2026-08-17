@@ -17,6 +17,7 @@ import uuid
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.logging import request_id_var
 from app.models.privacy import AuditLog
 
 logger = logging.getLogger("carbonizer.audit")
@@ -55,9 +56,14 @@ async def record(
     if db is None:
         return  # seed mode — nothing to write
     ip = request.client.host if request and request.client else None
-    req_id = (
-        request.headers.get("x-request-id") if request is not None else None
-    )
+    # Contextvar first: RequestIdMiddleware mints a UUID when the caller sends
+    # no X-Request-Id and stores it there, but never writes it back onto the
+    # request headers. Reading the header alone left request_id NULL on every
+    # direct call while the logs and the response header carried an id —
+    # exactly the correlation this table exists for.
+    req_id = request_id_var.get()
+    if req_id is None and request is not None:
+        req_id = request.headers.get("x-request-id")
     try:
         db.add(
             AuditLog(

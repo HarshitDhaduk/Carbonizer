@@ -60,9 +60,29 @@ describe("Questionnaire", () => {
         onComplete={vi.fn()}
       />,
     );
-    // The Diet question lands first because its VoI is higher.
+    // The Diet question lands first because its VoI is higher. Query the
+    // radiogroup rather than the raw text — the label also appears in the
+    // sr-only live region that announces step changes.
     expect(
-      screen.getByText(/how would you describe your diet/i),
+      screen.getByRole("radiogroup", {
+        name: /how would you describe your diet/i,
+      }),
     ).toBeInTheDocument();
+  });
+
+  it("announces the current step in a live region", () => {
+    // Advancing swaps the question in place and leaves focus on Next, so
+    // without this a screen-reader user gets no signal the content changed.
+    const { container } = render(
+      <Questionnaire
+        questions={QUESTIONS}
+        submitting={false}
+        onComplete={vi.fn()}
+      />,
+    );
+    const live = container.querySelector('[aria-live="polite"]');
+    expect(live).toHaveTextContent(
+      "Question 1 of 2: How would you describe your diet?",
+    );
   });
 });

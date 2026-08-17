@@ -80,4 +80,75 @@ describe("ConfirmDialog", () => {
     if (backdrop) await user.click(backdrop);
     expect(onCancel).toHaveBeenCalledOnce();
   });
+
+  // --- audit/2026-08: focus management (WCAG 2.4.3) --------------------------
+
+  it("moves focus to the confirm button on open", () => {
+    render(
+      <ConfirmDialog
+        open
+        title="Log out?"
+        confirmLabel="Log out"
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Log out" })).toHaveFocus();
+  });
+
+  it("traps Tab inside the dialog instead of letting it escape to the page", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <button type="button">Behind the overlay</button>
+        <ConfirmDialog
+          open
+          title="Log out?"
+          cancelLabel="Cancel"
+          confirmLabel="Log out"
+          onConfirm={() => {}}
+          onCancel={() => {}}
+        />
+      </>,
+    );
+
+    const confirm = screen.getByRole("button", { name: "Log out" });
+    const cancel = screen.getByRole("button", { name: "Cancel" });
+    const outside = screen.getByRole("button", { name: "Behind the overlay" });
+    expect(confirm).toHaveFocus();
+
+    // Confirm is the last focusable in the panel — Tab must wrap to the first.
+    await user.tab();
+    expect(outside).not.toHaveFocus();
+    expect(cancel).toHaveFocus();
+
+    // ...and Shift+Tab from the first wraps back to the last.
+    await user.tab({ shift: true });
+    expect(confirm).toHaveFocus();
+  });
+
+  it("returns focus to the trigger when it closes", () => {
+    function Harness({ open }: { open: boolean }) {
+      return (
+        <>
+          <button type="button">Account menu</button>
+          <ConfirmDialog
+            open={open}
+            title="Log out?"
+            onConfirm={() => {}}
+            onCancel={() => {}}
+          />
+        </>
+      );
+    }
+    const { rerender } = render(<Harness open={false} />);
+    const trigger = screen.getByRole("button", { name: "Account menu" });
+    trigger.focus();
+
+    rerender(<Harness open />);
+    expect(trigger).not.toHaveFocus();
+
+    rerender(<Harness open={false} />);
+    expect(trigger).toHaveFocus();
+  });
 });

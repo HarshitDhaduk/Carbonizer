@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LogOut } from "lucide-react";
 import { useAuthStore } from "@/store/auth-store";
 import { useLogoutWithConfirm } from "@/lib/use-logout-with-confirm";
@@ -12,6 +12,20 @@ export function AccountMenu({ className }: { className?: string }) {
   const user = useAuthStore((s) => s.user);
   const [open, setOpen] = useState(false);
   const { confirmOpen, setConfirmOpen, confirmLogout } = useLogoutWithConfirm();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  // The click-away layer is mouse-only, so without this a keyboard user who
+  // opens the menu has no way to dismiss it.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
 
   const email = user?.email ?? "Account";
   const initial = email.charAt(0).toUpperCase();
@@ -19,6 +33,7 @@ export function AccountMenu({ className }: { className?: string }) {
   return (
     <div className={cn("relative", className)}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"

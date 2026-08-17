@@ -1,0 +1,16 @@
+# Carbonizer backend — dev / test dependencies.
+#
+# Split out of requirements.txt so the production image (backend/Dockerfile
+# installs requirements.txt only) doesn't carry the test toolchain. `pip-audit
+# --requirement requirements.txt` in CI now audits the real production
+# dependency set rather than a superset.
+#
+# The canonical dev set is `pip install -e ".[dev]"` (what CI runs) — this file
+# mirrors the subset that used to live in requirements.txt, for anyone using
+# the plain-pip workflow.
+
+-r requirements.txt
+
+pytest==9.0.3
+pytest-asyncio==1.4.0
+httpx==0.28.1

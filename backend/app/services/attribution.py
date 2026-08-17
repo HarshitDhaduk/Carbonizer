@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import NamedTuple
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,7 +31,21 @@ _DEFAULT_GRID_INTENSITY_G = 162  # gCO2/kWh — GB-wide mean (Carbon Intensity A
 _G_TO_KG = 1000
 
 
-def _elec_aggregate(reads: list[RawEnergyRead]) -> tuple[float, float]:
+class _Read(NamedTuple):
+    """The four columns the decomposition actually reads.
+
+    Selecting these instead of the mapped entity keeps a full window of
+    half-hourly reads off the ORM identity map — the decomposition only ever
+    sums floats, so instrumented instances buy nothing.
+    """
+
+    interval_start: datetime
+    kwh: float
+    fuel: str
+    grid_intensity: float | None
+
+
+def _elec_aggregate(reads: list[_Read]) -> tuple[float, float]:
     """Return (total_kWh, kWh-weighted mean intensity gCO2/kWh) for electricity."""
     kwh = sum(float(r.kwh) for r in reads)
     if kwh <= 0:
@@ -49,20 +64,28 @@ def _elec_aggregate(reads: list[RawEnergyRead]) -> tuple[float, float]:
 
 async def _fetch_reads(
     db: AsyncSession, user_id: uuid.UUID, since: datetime
-) -> list[RawEnergyRead]:
+) -> list[_Read]:
     """Pull the user's energy reads in the window — caller splits by period."""
     res = await db.execute(
-        select(RawEnergyRead).where(
+        select(
+            RawEnergyRead.interval_start,
+            RawEnergyRead.kwh,
+            RawEnergyRead.fuel,
+            RawEnergyRead.grid_intensity,
+        ).where(
             RawEnergyRead.user_id == user_id,
             RawEnergyRead.interval_start >= since,
         )
     )
-    return list(res.scalars().all())
+    return [
+        _Read(interval_start, float(kwh), fuel, grid_intensity)
+        for interval_start, kwh, fuel, grid_intensity in res.all()
+    ]
 
 
 def _split_by_period(
-    reads: list[RawEnergyRead], mid: datetime
-) -> tuple[list[RawEnergyRead], list[RawEnergyRead]]:
+    reads: list[_Read], mid: datetime
+) -> tuple[list[_Read], list[_Read]]:
     """Partition reads into (prior, current) halves around ``mid``."""
     prior = [r for r in reads if r.interval_start < mid]
     curr = [r for r in reads if r.interval_start >= mid]
@@ -70,7 +93,7 @@ def _split_by_period(
 
 
 def _decompose(
-    prior: list[RawEnergyRead], curr: list[RawEnergyRead]
+    prior: list[_Read], curr: list[_Read]
 ) -> tuple[float, float]:
     """Return (behavioral_kg, structural_kg) via index decomposition.
 

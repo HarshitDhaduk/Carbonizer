@@ -60,9 +60,11 @@ class Settings(BaseSettings):
     # State-changing requests are still defended by the CSRF double-submit.
     cookie_samesite_raw: Literal["lax", "strict", "none"] = "lax"
     # Encryption key for envelope-encrypting provider tokens at rest (Phase 2.8).
-    # Must be a base64-encoded 32-byte key (Fernet format). Generate with
-    # `python -m app.scripts.gen_encryption_key`. Empty string falls back to a
-    # deterministic dev-only key.
+    # Must be a base64-encoded 32-byte key (Fernet format). Generate with:
+    #   python -c "from cryptography.fernet import Fernet; \
+    #              print(Fernet.generate_key().decode())"
+    # Outside production an empty string derives a deterministic dev-only key
+    # from SECRET_KEY; production hard-fails instead (see core/crypto.py).
     encryption_key: str = ""
 
     # --- CORS ---

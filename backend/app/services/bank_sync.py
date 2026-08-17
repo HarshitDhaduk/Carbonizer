@@ -139,18 +139,26 @@ async def _collect_spend(
     Returns ``(spend_tco2e, total_spend_gbp)``. Merchant-aware (R2): the
     carbon factor varies by merchant within an MCC.
     """
+    # Column-only select: we sum four floats per row, so materializing full
+    # mapped instances (identity map, attribute instrumentation, every column)
+    # is pure overhead. A single 84-day window is thousands of rows and this
+    # runs on every /connections/*/link and /sync.
     tx_res = await db.execute(
-        select(RawTransaction).where(
+        select(
+            RawTransaction.amount_minor,
+            RawTransaction.mcc,
+            RawTransaction.merchant,
+        ).where(
             RawTransaction.user_id == user_id, RawTransaction.booked_at >= since
         )
     )
     spend_tco2e: dict[Category, float] = {}
     total_spend_gbp = 0.0
-    for txn in tx_res.scalars().all():
-        gbp = txn.amount_minor / 100
+    for amount_minor, mcc, merchant in tx_res.all():
+        gbp = amount_minor / 100
         total_spend_gbp += gbp
-        cat = carbon.categorize(txn.mcc)
-        kg = carbon.co2e_kg(cat, gbp, txn.merchant) * _ANNUALIZE
+        cat = carbon.categorize(mcc)
+        kg = carbon.co2e_kg(cat, gbp, merchant) * _ANNUALIZE
         spend_tco2e[cat] = spend_tco2e.get(cat, 0.0) + kg / 1000
     return spend_tco2e, total_spend_gbp
 
@@ -159,18 +167,23 @@ async def _collect_energy(
     db: AsyncSession, user_id: uuid.UUID, since: datetime
 ) -> float | None:
     """Activity-based annual energy tCO2e from metered reads, or None if no meter."""
+    # Column-only select — see the note in _collect_spend.
     en_res = await db.execute(
-        select(RawEnergyRead).where(
+        select(
+            RawEnergyRead.kwh,
+            RawEnergyRead.fuel,
+            RawEnergyRead.grid_intensity,
+        ).where(
             RawEnergyRead.user_id == user_id,
             RawEnergyRead.interval_start >= since,
         )
     )
     energy_kg = 0.0
     has_energy = False
-    for r in en_res.scalars().all():
+    for kwh, fuel, grid_intensity in en_res.all():
         has_energy = True
-        gi = float(r.grid_intensity) if r.grid_intensity is not None else None
-        energy_kg += carbon.energy_co2e_kg(float(r.kwh), r.fuel, gi)
+        gi = float(grid_intensity) if grid_intensity is not None else None
+        energy_kg += carbon.energy_co2e_kg(float(kwh), fuel, gi)
     return (energy_kg / 1000 * _ANNUALIZE) if has_energy else None
 
 
